@@ -15,6 +15,9 @@ trim_trailing_whitespace = true
 [*.md]
 trim_trailing_whitespace = false
 
+[.github/workflows/*.yml]
+indent_size = 2
+
 [Dockerfile]
 indent_style = tab
 
