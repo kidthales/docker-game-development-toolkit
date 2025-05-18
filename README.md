@@ -7,6 +7,7 @@ A Docker image that sources a collection of free & mostly-free tools that I find
 - [Tiled](https://github.com/mapeditor/tiled) (headless)
 - [tile-extruder](https://github.com/sporadic-labs/tile-extruder)
 - [Aseprite](https://github.com/aseprite/aseprite) (headless) - Some assembly required!
+- [YAML](https://github.com/eemeli/yaml) (parser)
 
 ## Requirements
 

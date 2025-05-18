@@ -42,6 +42,6 @@ RUN curl --show-error --silent --location --output AppImage https://github.com/m
 
 # Global NPM packages
 WORKDIR /tmp
-RUN npm install -g tile-extruder
+RUN npm install -g tile-extruder yaml
 
 WORKDIR /workspace
