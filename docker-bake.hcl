@@ -1,4 +1,4 @@
-variable "ASEPRITE_UPSTREAM" { default = "docker-image://ghcr.io/kidthales/aseprite:headless-v1.3.10.1" }
+variable "ASEPRITE_UPSTREAM" { default = "docker-image://ghcr.io/kidthales/aseprite:headless-v1.3.14.4" }
 variable "IMAGES_PREFIX" { default = "gdtk:" }
 variable "IMAGES_TAG" { default = "latest" }
 variable "TILED_VERSION" { default = "1.11.2" }

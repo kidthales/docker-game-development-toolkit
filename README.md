@@ -1,6 +1,6 @@
 # Game Development Toolkit
 
-A Docker image that sources a collection of free & mostly-free tools that I find useful for game design & development.
+A Docker image that sources a collection of free & mostly-free tools useful for game design & development automation.
 
 ## Features
 
@@ -50,4 +50,4 @@ ASEPRITE_UPSTREAM="docker-image://docker.io/myvendor/aseprite:headless-main"
 
 ## License
 
-[WTFPL](./LICENSE)
+[MIT](./LICENSE)

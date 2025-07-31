@@ -2,6 +2,10 @@
 
 FROM node:lts
 
+LABEL org.opencontainers.image.source=https://github.com/kidthales/gdtk
+LABEL org.opencontainers.image.description="Sources a collection of free & mostly-free tools useful for game design & development automation"
+LABEL org.opencontainers.image.licenses=MIT
+
 ENV XDG_RUNTIME_DIR /tmp/runtime-root
 
 WORKDIR /tmp
