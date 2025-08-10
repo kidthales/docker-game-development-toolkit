@@ -41,7 +41,7 @@ RUN curl --show-error --silent --location --output AppImage https://github.com/m
 	rm ./AppImage && \
 	echo '#!/usr/bin/env bash\nxvfb-run /opt/tiled/squashfs-root/usr/bin/tiled ${@}' > /usr/local/bin/tiled && \
 	chmod +x /usr/local/bin/tiled && \
-	# Smoke test
+	# Smoke test \
 	tiled --help
 
 # Global NPM packages
@@ -49,3 +49,10 @@ WORKDIR /tmp
 RUN npm install -g tile-extruder yaml
 
 WORKDIR /workspace
+
+# HTTP
+EXPOSE 80/tcp 8080/tcp
+# HTTPS
+EXPOSE 443/tcp
+# HTTP/3
+EXPOSE 443/udp
