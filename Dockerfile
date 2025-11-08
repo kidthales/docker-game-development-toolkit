@@ -21,6 +21,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 	libsm6 \
 	libssl3 \
 	libxcursor1 \
+	libxrandr2 \
 	qbs \
 	qtbase5-dev \
 	qtbase5-private-dev \
