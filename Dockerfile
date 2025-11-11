@@ -42,3 +42,19 @@ EXPOSE 80/tcp 8080/tcp
 EXPOSE 443/tcp
 # HTTP/3
 EXPOSE 443/udp
+
+FROM toolkit AS non-free
+
+# Install dependencies.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+	libc++1-17t64 \
+	libxcursor1 \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY --from=aseprite-builder --chmod=755 /opt/aseprite/build/bin /opt/aseprite/bin
+
+# Ensure binary is found in $PATH.
+RUN ln -s /opt/aseprite/bin/aseprite /usr/local/bin/aseprite && \
+	ln -s /opt/aseprite/bin/aseprite /usr/local/bin/ase && \
+	# Smoke test \
+	ase --help
