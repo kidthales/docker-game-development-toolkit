@@ -2,8 +2,8 @@
 
 FROM toolkit-upstream AS toolkit
 
-LABEL org.opencontainers.image.source=https://github.com/kidthales/gdtk
-LABEL org.opencontainers.image.description="A curated collection of free tools useful for game design & development automation."
+LABEL org.opencontainers.image.source=https://github.com/kidthales/docker-game-development-toolkit
+LABEL org.opencontainers.image.description="A curated collection of free tools useful for game development use cases such as build scripts or automated workflows like GitHub Actions."
 LABEL org.opencontainers.image.licenses=MIT
 
 ENV XDG_RUNTIME_DIR /tmp/runtime-root
@@ -48,6 +48,10 @@ EXPOSE 443/tcp
 EXPOSE 443/udp
 
 FROM toolkit AS non-free
+
+LABEL org.opencontainers.image.source=https://github.com/kidthales/docker-game-development-toolkit
+LABEL org.opencontainers.image.description="A curated collection of free and non-free tools useful for game development use cases such as build scripts or automated workflows like GitHub Actions."
+LABEL org.opencontainers.image.licenses=MIT
 
 # Install dependencies.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
