@@ -29,7 +29,11 @@ RUN curl --show-error --silent --location --output AppImage https://github.com/m
 	tiled --help
 
 # Global NPM packages
-RUN npm install -g tile-extruder yaml && \
+ARG tile_extruder_version
+ARG yaml_version
+RUN npm install -g \
+	tile-extruder@${tile_extruder_version} \
+	yaml@${yaml_version} && \
 	# Smoke tests \
 	tile-extruder --help && \
 	yaml --help
