@@ -4,18 +4,13 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      images-tag:
-        required: false
-        type: string
-        description: (Optional) Tag to apply to built images. Defaults to current date (UTC, YYYY-MM-DD).
+  workflow_dispatch: ~
   schedule:
     # UTC
     - cron: 20 16 * * *
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.images-tag || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -45,4 +40,3 @@ jobs:
           source: .
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
-          IMAGES_TAG: ${{ github.event.inputs.images-tag }}
