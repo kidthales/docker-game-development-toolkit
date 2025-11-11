@@ -1,36 +1,19 @@
 #syntax=docker/dockerfile:1.4
 
-FROM node:trixie
+FROM toolkit-upstream AS toolkit
 
 LABEL org.opencontainers.image.source=https://github.com/kidthales/gdtk
-LABEL org.opencontainers.image.description="Sources a collection of free & mostly-free tools useful for game design & development automation"
+LABEL org.opencontainers.image.description="A curated collection of free tools useful for game design & development automation."
 LABEL org.opencontainers.image.licenses=MIT
 
 ENV XDG_RUNTIME_DIR /tmp/runtime-root
-
-WORKDIR /tmp
 
 # Install dependencies.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
 	curl \
 	ca-certificates \
-	libc++1-17t64 \
-	libfontconfig1 \
-	libgl1 \
-	libqt5svg5-dev \
-	libsm6 \
-	libssl3 \
-	libxcursor1 \
-	libxrandr2 \
-	qbs \
-	qtbase5-dev \
-	qtbase5-private-dev \
-	qtdeclarative5-dev \
-	qtdeclarative5-private-dev \
-	qttools5-dev-tools \
 	xauth \
 	xvfb \
-	zlib1g-dev \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Install Tiled
@@ -46,8 +29,14 @@ RUN curl --show-error --silent --location --output AppImage https://github.com/m
 	tiled --help
 
 # Global NPM packages
-WORKDIR /tmp
-RUN npm install -g tile-extruder yaml
+ARG tile_extruder_version
+ARG yaml_version
+RUN npm install -g \
+	tile-extruder@${tile_extruder_version} \
+	yaml@${yaml_version} && \
+	# Smoke tests \
+	tile-extruder --help && \
+	yaml --help
 
 WORKDIR /workspace
 
@@ -57,3 +46,19 @@ EXPOSE 80/tcp 8080/tcp
 EXPOSE 443/tcp
 # HTTP/3
 EXPOSE 443/udp
+
+FROM toolkit AS non-free
+
+# Install dependencies.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+	libc++1-17t64 \
+	libxcursor1 \
+	&& rm -rf /var/lib/apt/lists/*
+
+# Install aseprite.
+COPY --from=aseprite-builder --chmod=755 /opt/aseprite/build/bin /opt/aseprite/bin
+# Ensure binary is found in $PATH.
+RUN ln -s /opt/aseprite/bin/aseprite /usr/local/bin/aseprite && \
+	ln -s /opt/aseprite/bin/aseprite /usr/local/bin/ase && \
+	# Smoke test \
+	ase --help
