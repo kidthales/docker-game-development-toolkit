@@ -1,5 +1,2 @@
 .env
 .idea
-.vscode
-docker-bake.override.json
-docker-bake.override.hcl

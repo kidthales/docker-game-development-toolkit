@@ -1,36 +1,19 @@
 #syntax=docker/dockerfile:1.4
 
-FROM node:trixie
+FROM toolkit-upstream AS toolkit
 
 LABEL org.opencontainers.image.source=https://github.com/kidthales/gdtk
-LABEL org.opencontainers.image.description="Sources a collection of free & mostly-free tools useful for game design & development automation"
+LABEL org.opencontainers.image.description="A curated collection of free tools useful for game design & development automation."
 LABEL org.opencontainers.image.licenses=MIT
 
 ENV XDG_RUNTIME_DIR /tmp/runtime-root
-
-WORKDIR /tmp
 
 # Install dependencies.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
 	curl \
 	ca-certificates \
-	libc++1-17t64 \
-	libfontconfig1 \
-	libgl1 \
-	libqt5svg5-dev \
-	libsm6 \
-	libssl3 \
-	libxcursor1 \
-	libxrandr2 \
-	qbs \
-	qtbase5-dev \
-	qtbase5-private-dev \
-	qtdeclarative5-dev \
-	qtdeclarative5-private-dev \
-	qttools5-dev-tools \
 	xauth \
 	xvfb \
-	zlib1g-dev \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Install Tiled
@@ -46,8 +29,10 @@ RUN curl --show-error --silent --location --output AppImage https://github.com/m
 	tiled --help
 
 # Global NPM packages
-WORKDIR /tmp
-RUN npm install -g tile-extruder yaml
+RUN npm install -g tile-extruder yaml && \
+	# Smoke tests \
+	tile-extruder --help && \
+	yaml --help
 
 WORKDIR /workspace
 
