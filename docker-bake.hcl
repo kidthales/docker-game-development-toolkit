@@ -18,7 +18,7 @@ target "gdtk" {
     toolkit-upstream = "${TOOLKIT_UPSTREAM}"
   }
   target = "toolkit"
-  tags = ["${IMAGES_PREFIX}gdtk:${IMAGES_TAG}"]
+  tags = ["${IMAGES_PREFIX}gdtk:${IMAGES_TAG}", "${IMAGES_PREFIX}gdtk:latest"]
 }
 
 target "gdtk-non-free" {
@@ -32,7 +32,7 @@ target "gdtk-non-free" {
     toolkit-upstream = "${TOOLKIT_UPSTREAM}"
   }
   target = "non-free"
-  tags = ["${IMAGES_PREFIX}gdtk-non-free:${IMAGES_TAG}"]
+  tags = ["${IMAGES_PREFIX}gdtk-non-free:${IMAGES_TAG}", "${IMAGES_PREFIX}gdtk-non-free:latest"]
 }
 
 target "aseprite-builder" {
