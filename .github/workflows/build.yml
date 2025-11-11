@@ -42,6 +42,7 @@ jobs:
           pull: true
           push: true
           no-cache: true
+          source: .
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
-          IMAGES_TAG: '${{ github.event.inputs.images-tag }}'
+          IMAGES_TAG: ${{ github.event.inputs.images-tag }}
