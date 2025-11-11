@@ -1,6 +1,6 @@
 # Docker Game Development Toolkit
 
-[![Build](https://github.com/kidthales/gdtk/actions/workflows/build.yml/badge.svg)](https://github.com/kidthales/gdtk/actions/workflows/build.yml)
+[![Build](https://github.com/kidthales/docker-game-development-toolkit/actions/workflows/build.yml/badge.svg)](https://github.com/kidthales/gdtk/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 A Docker image with a curated collection of free tools useful for game development use cases such as build scripts or automated workflows like GitHub Actions.
