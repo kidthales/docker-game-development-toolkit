@@ -51,8 +51,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 	libxcursor1 \
 	&& rm -rf /var/lib/apt/lists/*
 
+# Install aseprite.
 COPY --from=aseprite-builder --chmod=755 /opt/aseprite/build/bin /opt/aseprite/bin
-
 # Ensure binary is found in $PATH.
 RUN ln -s /opt/aseprite/bin/aseprite /usr/local/bin/aseprite && \
 	ln -s /opt/aseprite/bin/aseprite /usr/local/bin/ase && \
