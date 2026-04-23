@@ -1,6 +1,6 @@
 variable "ASEPRITE_BUILDER_UPSTREAM" { default = "docker-image://python:3.12.12-trixie" }
 variable "ASEPRITE_BUILD_TYPE" { default = "Release" }
-variable "ASEPRITE_GIT_REF" { default = "v1.3.17" }
+variable "ASEPRITE_GIT_REF" { default = "v1.3.17.1" }
 variable "IMAGES_PREFIX" { default = "" }
 variable "IMAGES_TAG" { default = formatdate("YYYY-MM-DD", timestamp()) }
 variable "TILED_VERSION" { default = "1.11.2" }
