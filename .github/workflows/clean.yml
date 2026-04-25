@@ -1,0 +1,20 @@
+name: Clean
+
+on:
+  workflow_dispatch: ~
+  schedule:
+    # UTC
+    - cron: 20 4 * * *
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  ghcr-cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          packages: gdtk,gdtk-non-free
+          delete-untagged: true
