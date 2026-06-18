@@ -6,7 +6,7 @@ variable "IMAGES_TAG" { default = formatdate("YYYY-MM-DD", timestamp()) }
 variable "TILED_VERSION" { default = "1.11.2" }
 variable "TILE_EXTRUDER_VERSION" { default = "2.1.1" }
 variable "TOOLKIT_UPSTREAM" { default = "docker-image://node:lts-trixie" }
-variable "YAML_VERSION" { default = "2.8.1" }
+variable "YAML_VERSION" { default = "2.9.0" }
 
 target "gdtk" {
   args = {
