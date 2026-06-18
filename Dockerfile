@@ -12,6 +12,7 @@ ENV XDG_RUNTIME_DIR /tmp/runtime-root
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
 	curl \
 	ca-certificates \
+	libegl1 \
 	xauth \
 	xvfb \
 	&& rm -rf /var/lib/apt/lists/*
@@ -19,7 +20,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 # Install Tiled
 ARG tiled_version
 WORKDIR /opt/tiled
-RUN curl --show-error --silent --location --output AppImage https://github.com/mapeditor/tiled/releases/download/v${tiled_version}/Tiled-${tiled_version}_Linux_Qt-5_x86_64.AppImage && \
+RUN curl --show-error --silent --location --output AppImage https://github.com/mapeditor/tiled/releases/download/v${tiled_version}/Tiled-${tiled_version}_Linux_x86_64.AppImage && \
 	chmod +x /opt/tiled/AppImage && \
 	./AppImage --appimage-extract && \
 	rm ./AppImage && \
