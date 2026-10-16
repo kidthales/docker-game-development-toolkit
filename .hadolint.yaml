@@ -1,4 +1,3 @@
 ignored:
-  - DL3006 # BuildKit named contexts (toolkit-upstream, aseprite-upstream) are resolved via docker-bake.hcl
   - DL3008 # Rolling Ubuntu 24.04 security updates supersede fixed apt package versions
   - DL3022 # COPY --from=aseprite-upstream references a BuildKit external image context

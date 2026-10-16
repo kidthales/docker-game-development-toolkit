@@ -1,9 +1,15 @@
 name: Clean
 
 on:
-  workflow_dispatch: ~
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Simulate cleanup without deleting images'
+        type: boolean
+        required: false
+        default: true
   schedule:
-    # UTC
+    # UTC: Daily at 04:20
     - cron: 20 4 * * *
 
 concurrency:
@@ -13,8 +19,18 @@ concurrency:
 jobs:
   ghcr-cleanup:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: dataaxiom/ghcr-cleanup-action@v1
+      - name: Prune Untagged & Obsolete GHCR Images
+        uses: dataaxiom/ghcr-cleanup-action@v1
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           packages: gdtk,gdtk-non-free
           delete-untagged: true
+          older-than: 30 days
+          delete-tags: '.*'
+          use-regex: true
+          exclude-tags: '^(latest|v?[0-9]+\.[0-9]+\.[0-9]+.*)$'
+          dry-run: ${{ inputs.dry-run || false }}

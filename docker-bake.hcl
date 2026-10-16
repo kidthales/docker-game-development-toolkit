@@ -5,7 +5,6 @@ variable "IMAGES_TAG" { default = "" }
 variable "PLATFORMS" { default = ["linux/amd64", "linux/arm64"] }
 variable "TILED_VERSION" { default = "1.12.2" }
 variable "TILE_EXTRUDER_VERSION" { default = "2.1.1" }
-variable "TOOLKIT_UPSTREAM" { default = "docker-image://ubuntu:24.04" }
 variable "YAML_VERSION" { default = "2.9.1" }
 
 target "gdtk" {
@@ -14,9 +13,6 @@ target "gdtk" {
     tiled_version = "${TILED_VERSION}"
     tile_extruder_version = "${TILE_EXTRUDER_VERSION}"
     yaml_version = "${YAML_VERSION}"
-  }
-  contexts = {
-    toolkit-upstream = "${TOOLKIT_UPSTREAM}"
   }
   target = "toolkit"
   tags = compact([
@@ -34,7 +30,6 @@ target "gdtk-non-free" {
   }
   contexts = {
     aseprite-upstream = "${ASEPRITE_IMAGE}"
-    toolkit-upstream = "${TOOLKIT_UPSTREAM}"
   }
   target = "non-free"
   tags = compact([
