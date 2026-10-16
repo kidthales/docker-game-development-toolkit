@@ -1,0 +1,53 @@
+version: '3'
+
+vars:
+  DOCKER_BAKE: touch .env && docker buildx bake -f .env -f docker-bake.hcl
+
+tasks:
+  default:
+    desc: Display available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: 'Build toolkit images (pass extra bake args after --; e.g. task build -- --no-cache --pull gdtk-non-free)'
+    cmds:
+      - '{{.DOCKER_BAKE}} {{.CLI_ARGS}}'
+
+  test:
+    desc: Run smoke tests against built local images
+    cmds:
+      - docker run --rm gdtk:latest tiled --version
+      - docker run --rm gdtk:latest tile-extruder --version
+      - docker run --rm gdtk:latest yaml --help
+      - cmd: docker image inspect gdtk-non-free:latest >/dev/null 2>&1 && docker run --rm gdtk-non-free:latest aseprite --version || true
+
+  lint:
+    desc: Run all static analysis checks (BuildKit check, Hadolint, Actionlint, EditorConfig)
+    deps: [lint:bake, lint:dockerfile, lint:actions, lint:editorconfig]
+
+  lint:bake:
+    desc: Validate docker-bake.hcl and Dockerfile via BuildKit check
+    cmds:
+      - '{{.DOCKER_BAKE}} --call=check gdtk gdtk-non-free'
+
+  lint:dockerfile:
+    desc: Lint Dockerfile with Hadolint
+    cmds:
+      - docker run --rm -i -v "{{.ROOT_DIR}}/.hadolint.yaml:/.hadolint.yaml:ro" hadolint/hadolint < Dockerfile
+
+  lint:actions:
+    desc: Lint GitHub Actions workflows with Actionlint
+    cmds:
+      - docker run --rm -v "{{.ROOT_DIR}}:/repo:ro" -w /repo rhysd/actionlint -color
+
+  lint:editorconfig:
+    desc: Verify file formatting and line endings against .editorconfig
+    cmds:
+      - docker run --rm -v "{{.ROOT_DIR}}:/check:ro" mstruebing/editorconfig-checker
+
+  print:
+    desc: Print resolved docker-bake.hcl configuration
+    cmds:
+      - '{{.DOCKER_BAKE}} --print gdtk gdtk-non-free'
