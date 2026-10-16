@@ -1,3 +1,0 @@
-[submodule "docker-aseprite-headless"]
-	path = docker-aseprite-headless
-	url = https://github.com/kidthales/docker-aseprite-headless.git

@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch: ~
-  schedule:
-    # UTC
-    - cron: 20 16 * * *
+  repository_dispatch:
+    types: [aseprite-published]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -21,8 +23,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: true
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v4
@@ -37,7 +37,7 @@ jobs:
             gdtk
             gdtk-non-free
           pull: true
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           source: .
           set: |
             *.cache-from=type=gha
