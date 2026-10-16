@@ -1,11 +1,11 @@
-variable "ASEPRITE_BUILDER_UPSTREAM" { default = "docker-image://python:3.12.14-trixie" }
+variable "ASEPRITE_BUILDER_UPSTREAM" { default = "docker-image://ubuntu:24.04" }
 variable "ASEPRITE_BUILD_TYPE" { default = "Release" }
 variable "ASEPRITE_GIT_REF" { default = "v1.3.18.6" }
 variable "IMAGES_PREFIX" { default = "" }
 variable "IMAGES_TAG" { default = formatdate("YYYY-MM-DD", timestamp()) }
 variable "TILED_VERSION" { default = "1.12.2" }
 variable "TILE_EXTRUDER_VERSION" { default = "2.1.1" }
-variable "TOOLKIT_UPSTREAM" { default = "docker-image://node:lts-trixie" }
+variable "TOOLKIT_UPSTREAM" { default = "docker-image://ubuntu:24.04" }
 variable "YAML_VERSION" { default = "2.9.1" }
 
 target "gdtk" {
