@@ -1,21 +1,30 @@
 #syntax=docker/dockerfile:1.4
 
+FROM node:22-bookworm-slim AS node-upstream
+
 FROM toolkit-upstream AS toolkit
 
 LABEL org.opencontainers.image.source=https://github.com/kidthales/docker-game-development-toolkit
 LABEL org.opencontainers.image.description="A curated collection of free tools useful for game development use cases such as build scripts or automated workflows like GitHub Actions."
 LABEL org.opencontainers.image.licenses=MIT
 
-ENV XDG_RUNTIME_DIR /tmp/runtime-root
+ENV XDG_RUNTIME_DIR=/tmp/runtime-root
 
 # Install dependencies.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
 	curl \
 	ca-certificates \
 	libegl1 \
+	libfontconfig1 \
 	xauth \
 	xvfb \
 	&& rm -rf /var/lib/apt/lists/*
+
+# Install Node.js LTS runtime from clean slim upstream
+COPY --from=node-upstream /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-upstream /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+	ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 # Install Tiled
 ARG tiled_version
@@ -56,7 +65,7 @@ LABEL org.opencontainers.image.licenses=MIT
 
 # Install dependencies.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
-	libc++1-17t64 \
+	libc++1-18 \
 	libxcursor1 \
 	&& rm -rf /var/lib/apt/lists/*
 

@@ -40,3 +40,21 @@ jobs:
           source: .
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
+
+      - name: Run Trivy Vulnerability Scanner (gdtk)
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/gdtk:latest
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: false
+          severity: 'CRITICAL'
+
+      - name: Run Trivy Vulnerability Scanner (gdtk-non-free)
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/gdtk-non-free:latest
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: false
+          severity: 'CRITICAL'
