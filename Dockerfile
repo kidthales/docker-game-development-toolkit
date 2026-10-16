@@ -1,4 +1,4 @@
-#syntax=docker/dockerfile:1.4
+#syntax=docker/dockerfile:1
 
 FROM node:22-bookworm-slim AS node-upstream
 
@@ -31,24 +31,24 @@ ARG TARGETARCH
 ARG tiled_version
 WORKDIR /opt/tiled
 RUN if [ "$TARGETARCH" = "amd64" ] || [ -z "$TARGETARCH" ]; then \
-        curl --show-error --silent --location --output AppImage https://github.com/mapeditor/tiled/releases/download/v${tiled_version}/Tiled-${tiled_version}_Linux_x86_64.AppImage && \
-        chmod +x /opt/tiled/AppImage && \
-        ./AppImage --appimage-extract && \
-        rm ./AppImage && \
-        rm -rf /opt/tiled/squashfs-root/usr/translations \
-               /opt/tiled/squashfs-root/usr/share/doc \
-               /opt/tiled/squashfs-root/usr/share/man && \
-        printf '#!/usr/bin/env bash\nxvfb-run /opt/tiled/squashfs-root/usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
-    elif [ "$TARGETARCH" = "arm64" ]; then \
-        apt-get update && apt-get install -y --no-install-recommends tiled && \
-        rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-        printf '#!/usr/bin/env bash\nxvfb-run /usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
-    else \
-        echo "Unsupported architecture: $TARGETARCH" && exit 1; \
-    fi && \
-    chmod +x /usr/local/bin/tiled && \
-    # Smoke test \
-    tiled --help
+		curl --show-error --silent --location --output AppImage "https://github.com/mapeditor/tiled/releases/download/v${tiled_version}/Tiled-${tiled_version}_Linux_x86_64.AppImage" && \
+		chmod +x /opt/tiled/AppImage && \
+		./AppImage --appimage-extract && \
+		rm ./AppImage && \
+		rm -rf /opt/tiled/squashfs-root/usr/translations \
+			/opt/tiled/squashfs-root/usr/share/doc \
+			/opt/tiled/squashfs-root/usr/share/man && \
+		printf '#!/usr/bin/env bash\nxvfb-run /opt/tiled/squashfs-root/usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
+	elif [ "$TARGETARCH" = "arm64" ]; then \
+		apt-get update && apt-get install -y --no-install-recommends tiled && \
+		rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+		printf '#!/usr/bin/env bash\nxvfb-run /usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
+	else \
+		echo "Unsupported architecture: $TARGETARCH" && exit 1; \
+	fi && \
+	chmod +x /usr/local/bin/tiled && \
+	# Smoke test \
+	tiled --help
 
 # Global NPM packages with cache pruning
 ARG tile_extruder_version
@@ -63,13 +63,6 @@ RUN npm install -g --omit=dev --no-audit --no-fund \
 	yaml --help
 
 WORKDIR /workspace
-
-# HTTP
-EXPOSE 80/tcp 8080/tcp
-# HTTPS
-EXPOSE 443/tcp
-# HTTP/3
-EXPOSE 443/udp
 
 FROM toolkit AS non-free
 

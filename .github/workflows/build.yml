@@ -4,23 +4,39 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*.*.*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
     branches:
       - main
   workflow_dispatch: ~
   repository_dispatch:
     types: [aseprite-published]
+  release:
+    types: [published]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+      - uses: docker/setup-buildx-action@v4
+      - name: Run Task Lint
+        run: task lint
+
   build-gdtk:
     name: Build Free Toolkit (gdtk) and Push to ghcr.io/${{ github.repository_owner }}
-
+    needs: lint
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU
@@ -42,6 +58,7 @@ jobs:
             *.cache-to=type=gha,mode=max,scope=gdtk
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
+          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
 
       - name: Run Trivy Vulnerability Scanner (gdtk)
         uses: aquasecurity/trivy-action@v0.36.0
@@ -54,9 +71,8 @@ jobs:
 
   build-gdtk-non-free:
     name: Build Non-Free Toolkit (gdtk-non-free) and Push to ghcr.io/${{ github.repository_owner }}
-
+    needs: lint
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU
@@ -78,6 +94,7 @@ jobs:
             *.cache-to=type=gha,mode=max,scope=gdtk-non-free
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
+          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
 
       - name: Run Trivy Vulnerability Scanner (gdtk-non-free)
         uses: aquasecurity/trivy-action@v0.36.0
@@ -87,3 +104,31 @@ jobs:
           exit-code: '1'
           ignore-unfixed: false
           severity: 'CRITICAL'
+
+  release-bom:
+    name: Publish Release BOM
+    needs: [build-gdtk, build-gdtk-non-free]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Append Tool BOM to Release Notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          cat << 'EOF' > bom.md
+
+          ### Contained Tools & Bill of Materials (BOM)
+          | Tool | Version | CLI Binary | Tier | License |
+          | :--- | :--- | :--- | :--- | :--- |
+          | **Tiled** | 1.12.2 | `tiled` | Free (`gdtk`) | GPL-2.0-or-later |
+          | **tile-extruder** | 2.1.1 | `tile-extruder` | Free (`gdtk`) | MIT |
+          | **yaml** | 2.9.1 | `yaml` | Free (`gdtk`) | Apache-2.0 |
+          | **Aseprite** | v1.3.18.6 | `aseprite`, `ase` | Non-Free (`gdtk-non-free`) | EULA (Proprietary) |
+          EOF
+          gh release view "$TAG_NAME" --json body -q .body > existing_body.md || true
+          cat existing_body.md bom.md > updated_body.md
+          gh release edit "$TAG_NAME" --notes-file updated_body.md
