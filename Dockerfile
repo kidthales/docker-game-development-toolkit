@@ -80,6 +80,7 @@ LABEL org.opencontainers.image.licenses=MIT
 # Install stripped Aseprite runtime dependencies.
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	libc++1-18 \
+	libfontconfig1 \
 	libx11-6 \
 	libxcursor1 \
 	libxext6 \
