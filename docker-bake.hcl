@@ -1,6 +1,5 @@
-variable "ASEPRITE_BUILDER_UPSTREAM" { default = "docker-image://ubuntu:24.04" }
-variable "ASEPRITE_BUILD_TYPE" { default = "Release" }
 variable "ASEPRITE_GIT_REF" { default = "v1.3.18.6" }
+variable "ASEPRITE_IMAGE" { default = "docker-image://ghcr.io/kidthales/aseprite:${ASEPRITE_GIT_REF}-headless" }
 variable "IMAGES_PREFIX" { default = "" }
 variable "IMAGES_TAG" { default = formatdate("YYYY-MM-DD", timestamp()) }
 variable "PLATFORMS" { default = ["linux/amd64", "linux/arm64"] }
@@ -31,24 +30,11 @@ target "gdtk-non-free" {
     yaml_version = "${YAML_VERSION}"
   }
   contexts = {
-    aseprite-builder = "target:aseprite-builder"
+    aseprite-upstream = "${ASEPRITE_IMAGE}"
     toolkit-upstream = "${TOOLKIT_UPSTREAM}"
   }
   target = "non-free"
   tags = ["${IMAGES_PREFIX}gdtk-non-free:${IMAGES_TAG}", "${IMAGES_PREFIX}gdtk-non-free:latest"]
-}
-
-target "aseprite-builder" {
-  platforms = PLATFORMS
-  args = {
-    aseprite_build_type = "${ASEPRITE_BUILD_TYPE}"
-    aseprite_git_ref = "${ASEPRITE_GIT_REF}"
-  }
-  context = "./docker-aseprite-headless"
-  contexts = {
-    builder-upstream = "${ASEPRITE_BUILDER_UPSTREAM}"
-  }
-  target = "builder"
 }
 
 group "default" {

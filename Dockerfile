@@ -87,7 +87,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install aseprite.
-COPY --from=aseprite-builder --chmod=755 /opt/aseprite/build/bin /opt/aseprite/bin
+COPY --from=aseprite-upstream --chmod=755 /opt/aseprite/bin /opt/aseprite/bin
 # Ensure binary is found in $PATH.
 RUN ln -s /opt/aseprite/bin/aseprite /usr/local/bin/aseprite && \
 	ln -s /opt/aseprite/bin/aseprite /usr/local/bin/ase && \
