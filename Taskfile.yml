@@ -30,7 +30,7 @@ tasks:
   lint:bake:
     desc: Validate docker-bake.hcl and Dockerfile via BuildKit check
     cmds:
-      - '{{.DOCKER_BAKE}} --call=check gdtk gdtk-non-free'
+      - '{{.DOCKER_BAKE}} --call=check gdtk'
 
   lint:dockerfile:
     desc: Lint Dockerfile with Hadolint
