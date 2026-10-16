@@ -2,7 +2,7 @@
 
 FROM node:22-bookworm-slim AS node-upstream
 
-FROM toolkit-upstream AS toolkit
+FROM ubuntu:24.04 AS toolkit
 
 LABEL org.opencontainers.image.source=https://github.com/kidthales/docker-game-development-toolkit
 LABEL org.opencontainers.image.description="A curated collection of free tools useful for game development use cases such as build scripts or automated workflows like GitHub Actions."
