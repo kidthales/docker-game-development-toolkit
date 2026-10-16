@@ -27,9 +27,13 @@ docker run --rm -it -v .:/workspace ghcr.io/kidthales/gdtk bash -c "cat config.y
 
 ## Non-Free Tools
 
-An additional set of curated 'non-free' tools are also maintained; these are usually open-source tools that have license constraints on the distribution of their binaries.
+An additional set of curated 'non-free' tools are also maintained; these are open-source or source-available tools that have licensing constraints governing the distribution of compiled binaries.
 
-Refer to the [Development](#development) section for information on how to build a `gdtk-non-free` image that includes both free and non-free tools.
+> [!IMPORTANT]
+> **Licensing & Registry Distribution (Aseprite EULA Compliance)**:  
+> - **Public Registry Images**: The `ghcr.io/kidthales/gdtk` container image contains exclusively open-source tools with permissive or copyleft distribution licenses ([Tiled](https://github.com/mapeditor/tiled), [tile-extruder](https://github.com/sporadic-labs/tile-extruder), [yaml](https://github.com/eemeli/yaml)) and is published **Publicly** on GitHub Container Registry.
+> - **Private / Local Non-Free Images**: [Aseprite](https://github.com/aseprite/aseprite) is governed by the [Aseprite EULA](https://github.com/aseprite/aseprite/blob/main/EULA.txt). While compiling Aseprite from source for personal or internal commercial use is fully permitted, redistributing compiled binaries to third parties is prohibited. Consequently, `gdtk-non-free` images hosted on GitHub Container Registry (`ghcr.io/kidthales/gdtk-non-free` and `ghcr.io/kidthales/aseprite`) are configured as **Private** packages.
+> - **Local Build for External Users**: External developers must build `gdtk-non-free` locally on their own machines using the instructions below. Compiling locally for personal use is 100% compliant with the Aseprite EULA.
 
 ### [Aseprite](https://github.com/aseprite/aseprite)
 
@@ -46,11 +50,11 @@ Build an image containing only the free tools:
 docker buildx bake --pull --no-cache
 ```
 
-Build the non-free image:
+Build the non-free image locally (Aseprite compiled from source):
 
 ```shell
-# Ensure docker-aseprite-headless submodule is available
-git submodule update --init
+# Ensure docker-aseprite-headless submodule is initialized
+git submodule update --init --recursive
 # Creates image with tag gdtk-non-free:latest
 docker buildx bake --pull --no-cache gdtk-non-free
 ```
