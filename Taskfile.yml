@@ -21,7 +21,10 @@ tasks:
       - docker run --rm gdtk:latest tiled --version
       - docker run --rm gdtk:latest tile-extruder --version
       - docker run --rm gdtk:latest yaml --help
-      - cmd: docker image inspect gdtk-non-free:latest >/dev/null 2>&1 && docker run --rm gdtk-non-free:latest aseprite --version || true
+      - |
+        if docker image inspect gdtk-non-free:latest >/dev/null 2>&1; then
+          docker run --rm gdtk-non-free:latest aseprite --version
+        fi
 
   lint:
     desc: Run all static analysis checks (BuildKit check, Hadolint, Actionlint, EditorConfig)
@@ -30,7 +33,7 @@ tasks:
   lint:bake:
     desc: Validate docker-bake.hcl and Dockerfile via BuildKit check
     cmds:
-      - '{{.DOCKER_BAKE}} --call=check gdtk'
+      - '{{.DOCKER_BAKE}} --call=check gdtk gdtk-non-free'
 
   lint:dockerfile:
     desc: Lint Dockerfile with Hadolint
