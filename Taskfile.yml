@@ -16,19 +16,36 @@ tasks:
       - '{{.DOCKER_BAKE}} {{.CLI_ARGS}}'
 
   test:
-    desc: Run smoke tests against built local images
+    desc: Run unit tests and smoke tests against built local images
     cmds:
-      - docker run --rm gdtk:latest tiled --version
-      - docker run --rm gdtk:latest tile-extruder --version
-      - docker run --rm gdtk:latest yaml --help
+      - task: test:unit
+      - task: test:gdtk
       - |
-        if docker image inspect gdtk-non-free:latest >/dev/null 2>&1; then
-          docker run --rm gdtk-non-free:latest aseprite --version
+        if docker image inspect "${IMAGES_PREFIX:-}gdtk-non-free:latest" >/dev/null 2>&1; then
+          docker run --rm "${IMAGES_PREFIX:-}gdtk-non-free:latest" aseprite --version
         fi
 
+  test:unit:
+    desc: Run unit and boundary regression tests
+    cmds:
+      - bash tests/toolkit_test.sh
+
+  test:gdtk:
+    desc: Run smoke tests against built free toolkit image
+    cmds:
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk:latest" tiled --version
+      - docker run --rm -u 1000:1000 "${IMAGES_PREFIX:-}gdtk:latest" tiled --version
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk:latest" tile-extruder --version
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk:latest" yaml --help
+
+  test:non-free:
+    desc: Run smoke tests against built non-free image
+    cmds:
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk-non-free:latest" aseprite --version
+
   lint:
-    desc: Run all static analysis checks (BuildKit check, Hadolint, Actionlint, EditorConfig)
-    deps: [lint:bake, lint:dockerfile, lint:actions, lint:editorconfig]
+    desc: Run all static analysis checks (BuildKit check, Hadolint, Actionlint, ShellCheck, EditorConfig)
+    deps: [lint:bake, lint:dockerfile, lint:actions, lint:shellcheck, lint:editorconfig]
 
   lint:bake:
     desc: Validate docker-bake.hcl and Dockerfile via BuildKit check
@@ -44,6 +61,11 @@ tasks:
     desc: Lint GitHub Actions workflows with Actionlint
     cmds:
       - docker run --rm -v "{{.ROOT_DIR}}:/repo:ro" -w /repo rhysd/actionlint -color
+
+  lint:shellcheck:
+    desc: Lint shell scripts with ShellCheck
+    cmds:
+      - docker run --rm -v "{{.ROOT_DIR}}:/mnt:ro" -w /mnt koalaman/shellcheck:stable tests/toolkit_test.sh
 
   lint:editorconfig:
     desc: Verify file formatting and line endings against .editorconfig

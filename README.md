@@ -24,7 +24,7 @@ Built on **Ubuntu 26.04 LTS (Resolute Raccoon)** with native multi-architecture 
 
 > [!NOTE]
 > - **Tiled multi-arch packaging**: `linux/amd64` uses the extracted upstream AppImage (`1.12.2`), while `linux/arm64` uses the Ubuntu 26.04 LTS `apt` package (`1.12.1`).
-> - **Headless Xvfb & runtime isolation**: `tiled` invokes `xvfb-run -a` (`--auto-servernum`) with `HOME=/tmp` and a pre-created `0700` `XDG_RUNTIME_DIR=/tmp/runtime-root`, preventing display `:99` collisions during concurrent exports inside a container.
+> - **Headless Xvfb & runtime isolation**: `tiled` invokes `xvfb-run -a` (`--auto-servernum`) with `HOME=/tmp` and `XDG_RUNTIME_DIR=/tmp/runtime-root` (falling back to a per-UID `0700` `/tmp/runtime-$(id -u)` directory when running non-root via `--user`), preventing display `:99` collisions during concurrent exports inside a container.
 > - **Node.js runtime**: `tile-extruder` and `yaml` run on the bundled **Node.js 24 LTS** runtime (`node:24-bookworm-slim`).
 
 ---
@@ -142,10 +142,13 @@ task build
 # Build non-free image with Aseprite (gdtk-non-free:latest)
 task build -- gdtk-non-free
 
-# Run smoke tests against local images
+# Run unit tests and smoke tests against local images
 task test
 
-# Run static analysis suite (BuildKit check, Hadolint, Actionlint, EditorConfig)
+# Run unit tests only (no built Docker image required)
+task test:unit
+
+# Run static analysis suite (BuildKit check, Hadolint, Actionlint, ShellCheck, EditorConfig)
 task lint
 
 # Print resolved bake configuration

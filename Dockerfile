@@ -44,18 +44,30 @@ RUN if [ "$TARGETARCH" = "amd64" ] || [ -z "$TARGETARCH" ]; then \
 		rm -rf /opt/tiled/squashfs-root/usr/translations \
 			/opt/tiled/squashfs-root/usr/share/doc \
 			/opt/tiled/squashfs-root/usr/share/man && \
-		printf '#!/usr/bin/env bash\nxvfb-run -a /opt/tiled/squashfs-root/usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
+		tiled_bin=/opt/tiled/squashfs-root/usr/bin/tiled; \
 	elif [ "$TARGETARCH" = "arm64" ]; then \
 		apt-get update && apt-get install -y --no-install-recommends tiled && \
 		rm -rf /var/lib/apt/lists/* /var/tmp/* && \
-		printf '#!/usr/bin/env bash\nxvfb-run -a /usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
+		tiled_bin=/usr/bin/tiled; \
 	else \
 		echo "Unsupported architecture: $TARGETARCH" && exit 1; \
 	fi && \
+	printf '%s\n' \
+		"#!/usr/bin/env bash" \
+		"if [ ! -w \"\${XDG_RUNTIME_DIR:-}\" ]; then" \
+		"	XDG_RUNTIME_DIR=\"/tmp/runtime-\$(id -u)\"" \
+		"	install -d -m 0700 \"\$XDG_RUNTIME_DIR\"" \
+		"	export XDG_RUNTIME_DIR" \
+		"fi" \
+		"xvfb-run -a \"$tiled_bin\" \"\$@\"" \
+		"rc=\$?" \
+		"exit \"\$rc\"" \
+		> /usr/local/bin/tiled && \
 	chmod +x /usr/local/bin/tiled && \
 	# Smoke test \
 	tiled --help && \
-	find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} +
+	find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} + && \
+	find /tmp/runtime-root -mindepth 1 -delete
 
 # Global NPM packages with cache pruning
 ARG tile_extruder_version
@@ -64,7 +76,6 @@ RUN npm install -g --omit=dev --no-audit --no-fund \
 	tile-extruder@${tile_extruder_version} \
 	yaml@${yaml_version} && \
 	npm cache clean --force && \
-	rm -rf /root/.npm && \
 	find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} + && \
 	# Smoke tests \
 	tile-extruder --help && \
@@ -86,7 +97,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 	libxcursor1 \
 	libxext6 \
 	libxrandr2 \
-	&& rm -rf /var/lib/apt/lists/* /var/tmp/*
+	&& rm -rf /var/lib/apt/lists/* /var/tmp/* \
+	&& find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} +
 
 # Install aseprite.
 COPY --from=aseprite-upstream --chmod=755 /opt/aseprite/bin /opt/aseprite/bin
@@ -94,4 +106,6 @@ COPY --from=aseprite-upstream --chmod=755 /opt/aseprite/bin /opt/aseprite/bin
 RUN ln -s /opt/aseprite/bin/aseprite /usr/local/bin/aseprite && \
 	ln -s /opt/aseprite/bin/aseprite /usr/local/bin/ase && \
 	# Smoke test \
-	ase --help
+	ase --help && \
+	find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} + && \
+	find /tmp/runtime-root -mindepth 1 -delete
