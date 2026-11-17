@@ -267,10 +267,20 @@ test_repo_governance_invariants() {
 	' "$build" || fail "build.yml top-level permissions must not grant packages: write"
 
 	grep -q 'run: task test:unit' "$build" || fail "build.yml lint job must run task test:unit"
+	if grep -q 'setup-qemu-action' "$build"; then
+		fail "build.yml must not use QEMU emulation (setup-qemu-action)"
+	fi
 	assert_eq "2" "$(grep -c "load: \${{ github.event_name == 'pull_request' }}" "$build")" \
 		"build.yml must load single-arch PR images for both gdtk and gdtk-non-free"
-	assert_eq "2" "$(grep -c '\*\.platform=linux/amd64' "$build")" \
-		"build.yml must pin *.platform=linux/amd64 on pull_request for both bake jobs"
+	assert_eq "2" "$(grep -c 'runner: ubuntu-latest' "$build")" \
+		"build.yml must define ubuntu-latest (amd64) matrix leg for both bake jobs"
+	assert_eq "2" "$(grep -c 'runner: ubuntu-26.04-arm' "$build")" \
+		"build.yml must define ubuntu-26.04-arm (arm64) matrix leg for both bake jobs"
+	# shellcheck disable=SC2016
+	assert_eq "2" "$(grep -c '\*\.platform=\${{ matrix\.platform }}' "$build")" \
+		"build.yml must pass *.platform=\${{ matrix.platform }} for both bake jobs"
+	assert_eq "2" "$(grep -c 'docker buildx imagetools create' "$build")" \
+		"build.yml must merge multi-arch manifests via imagetools create for both targets"
 	# shellcheck disable=SC2016
 	grep -Fq '1.12.2 (`amd64` AppImage) / 1.12.1 (`arm64` apt)' "$build" \
 		|| fail "build.yml release-bom Tiled version must match README.md"
