@@ -3,13 +3,13 @@
 [![Build](https://github.com/kidthales/docker-game-development-toolkit/actions/workflows/build.yml/badge.svg)](https://github.com/kidthales/docker-game-development-toolkit/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-linux%2Famd64%20%7C%20linux%2Farm64-lightgrey.svg)](https://github.com/kidthales/docker-game-development-toolkit)
-[![Base](https://img.shields.io/badge/base-Ubuntu%2024.04%20LTS-E95420.svg)](https://ubuntu.com/)
+[![Base](https://img.shields.io/badge/base-Ubuntu%2026.04%20LTS-E95420.svg)](https://ubuntu.com/)
 [![Taskfile](https://img.shields.io/badge/task-go--task%20v3-00ADD8.svg)](https://taskfile.dev/)
 [![GHCR](https://img.shields.io/badge/ghcr.io-kidthales%2Fgdtk-blue.svg)](https://github.com/kidthales/docker-game-development-toolkit/pkgs/container/gdtk)
 
 A multi-platform container suite providing headless, curated asset-processing toolchains for 2D game development pipelines, build automations, and GitHub Actions CI workflows.
 
-Built on **Ubuntu 24.04 LTS (Noble Numbat)** with native multi-architecture support for **`linux/amd64`** (x86_64) and **`linux/arm64`** (Apple Silicon / ARM64).
+Built on **Ubuntu 26.04 LTS (Resolute Raccoon)** with native multi-architecture support for **`linux/amd64`** (x86_64) and **`linux/arm64`** (Apple Silicon / ARM64).
 
 ---
 
@@ -17,10 +17,15 @@ Built on **Ubuntu 24.04 LTS (Noble Numbat)** with native multi-architecture supp
 
 | Tool | Version | CLI Binary | Tier | Purpose | Upstream License |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **[Tiled](https://github.com/mapeditor/tiled)** | 1.12.2 | `tiled` | Free (`gdtk`) | 2D tilemap export (JSON, Lua, CSV) via headless Xvfb | GPL-2.0-or-later |
+| **[Tiled](https://github.com/mapeditor/tiled)** | 1.12.2 (`amd64` AppImage) / 1.12.1 (`arm64` apt) | `tiled` | Free (`gdtk`) | 2D tilemap export (JSON, Lua, CSV) via headless Xvfb (`xvfb-run -a`) | GPL-2.0-or-later |
 | **[tile-extruder](https://github.com/sporadic-labs/tile-extruder)** | 2.1.1 | `tile-extruder` | Free (`gdtk`) | Extrudes tile borders to prevent texture bleeding & seams | MIT |
 | **[yaml](https://github.com/eemeli/yaml)** | 2.9.1 | `yaml` | Free (`gdtk`) | Fast YAML-to-JSON and JSON-to-YAML formatting & parsing | Apache-2.0 |
 | **[Aseprite](https://github.com/aseprite/aseprite)** | v1.3.18.6 | `aseprite`, `ase` | Non-Free (`gdtk-non-free`) | Headless sprite slicing, tags export, and sheet packing | EULA (Proprietary) |
+
+> [!NOTE]
+> - **Tiled multi-arch packaging**: `linux/amd64` uses the extracted upstream AppImage (`1.12.2`), while `linux/arm64` uses the Ubuntu 26.04 LTS `apt` package (`1.12.1`).
+> - **Headless Xvfb & runtime isolation**: `tiled` invokes `xvfb-run -a` (`--auto-servernum`) with `HOME=/tmp` and `XDG_RUNTIME_DIR=/tmp/runtime-root` (falling back to a per-UID `0700` `/tmp/runtime-$(id -u)` directory when running non-root via `--user`), preventing display `:99` collisions during concurrent exports inside a container.
+> - **Node.js runtime**: `tile-extruder` and `yaml` run on the bundled **Node.js 24 LTS** runtime (`node:24-bookworm-slim`).
 
 ---
 
@@ -137,10 +142,13 @@ task build
 # Build non-free image with Aseprite (gdtk-non-free:latest)
 task build -- gdtk-non-free
 
-# Run smoke tests against local images
+# Run unit tests and smoke tests against local images
 task test
 
-# Run static analysis suite (BuildKit check, Hadolint, Actionlint, EditorConfig)
+# Run unit tests only (no built Docker image required)
+task test:unit
+
+# Run static analysis suite (BuildKit check, Hadolint, Actionlint, ShellCheck, EditorConfig)
 task lint
 
 # Print resolved bake configuration
