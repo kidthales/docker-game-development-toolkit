@@ -329,6 +329,17 @@ test_repo_governance_invariants() {
 		|| fail "scripts/ci-local.ps1 must wrap task lint"
 	grep -Fq 'task test:unit' "$ci_local" \
 		|| fail "scripts/ci-local.ps1 must run task test:unit"
+	# Negative / boundary: -CI mode must fail closed on 403 Forbidden / denied rather than falling back
+	# shellcheck disable=SC2016
+	grep -Fq '(-not $IsCI) -and' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must restrict GHCR 403 Forbidden fallback strictly to non-CI local runs"
+	# Negative / boundary: Gate 0 must reject tracked .ci-local/ and agent leaks while allowing local .ci-local/ untracked
+	grep -Fq '\.ci-local/' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 Gate 0 must reject tracked .ci-local/ files"
+	# shellcheck disable=SC2016
+	if grep -qE '\[switch\]\$(Quick|Skip)' "$ci_local"; then
+		fail "scripts/ci-local.ps1 must reject/omit skip or quick switches"
+	fi
 	# shellcheck disable=SC2016
 	grep -Fq -- '--user "$(id -u):$(id -g)"' "$REPO_ROOT/README.md" \
 		|| fail "README.md must document --user \"\$(id -u):\$(id -g)\" host-UID volume usage"
