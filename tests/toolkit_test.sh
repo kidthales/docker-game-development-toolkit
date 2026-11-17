@@ -296,8 +296,16 @@ test_repo_governance_invariants() {
 	assert_eq "4" "$(grep -c "if: \${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot\[bot\]' }}" "$build" | awk '{print ($1 >= 4) ? 4 : 0}')" \
 		"build.yml must guard lint/bake GHCR login, lint non-free check, and build-gdtk-non-free against fork and Dependabot PRs"
 	# shellcheck disable=SC2016
-	grep -Fq '1.12.2 (`amd64` AppImage) / 1.12.1 (`arm64` apt)' "$build" \
-		|| fail "build.yml release-bom Tiled version must match README.md"
+	grep -Fq 'docker buildx bake -f docker-bake.hcl --print gdtk gdtk-non-free' "$build" \
+		|| fail "build.yml release-bom must resolve versions via docker buildx bake --print"
+	local var
+	for var in TILED_VERSION TILE_EXTRUDER_VERSION YAML_VERSION ASEPRITE_GIT_REF; do
+		grep -Fq "${var}=" "$build" \
+			|| fail "build.yml release-bom must dynamically extract ${var} via jq"
+	done
+	if grep -qE '\| \*\*(Tiled|tile-extruder|yaml|Aseprite)\*\* \| [0-9v]' "$build"; then
+		fail "build.yml release-bom must not hardcode tool versions"
+	fi
 
 	grep -q 'find /tmp/runtime-root -mindepth 1 -delete' "$REPO_ROOT/Dockerfile" \
 		|| fail "Dockerfile must clear /tmp/runtime-root contents after build smoke tests"

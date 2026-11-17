@@ -243,20 +243,27 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: Append Tool BOM to Release Notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
-          cat << 'EOF' > bom.md
+          BAKE_JSON=$(docker buildx bake -f docker-bake.hcl --print gdtk gdtk-non-free)
+          TILED_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.tiled_version | select(type == "string" and length > 0)')
+          TILE_EXTRUDER_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.tile_extruder_version | select(type == "string" and length > 0)')
+          YAML_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.yaml_version | select(type == "string" and length > 0)')
+          ASEPRITE_GIT_REF=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target["gdtk-non-free"].contexts["aseprite-upstream"] | select(type == "string" and length > 0) | sub("^.*:"; "") | sub("-headless$"; "") | select(length > 0)')
+
+          cat <<EOF > bom.md
 
           ### Contained Tools & Bill of Materials (BOM)
           | Tool | Version | CLI Binary | Tier | License |
           | :--- | :--- | :--- | :--- | :--- |
-          | **Tiled** | 1.12.2 (`amd64` AppImage) / 1.12.1 (`arm64` apt) | `tiled` | Free (`gdtk`) | GPL-2.0-or-later |
-          | **tile-extruder** | 2.1.1 | `tile-extruder` | Free (`gdtk`) | MIT |
-          | **yaml** | 2.9.1 | `yaml` | Free (`gdtk`) | Apache-2.0 |
-          | **Aseprite** | v1.3.18.6 | `aseprite`, `ase` | Non-Free (`gdtk-non-free`) | EULA (Proprietary) |
+          | **Tiled** | ${TILED_VERSION} (\`amd64\` AppImage) / Ubuntu \`apt\` (\`arm64\`) | \`tiled\` | Free (\`gdtk\`) | GPL-2.0-or-later |
+          | **tile-extruder** | ${TILE_EXTRUDER_VERSION} | \`tile-extruder\` | Free (\`gdtk\`) | MIT |
+          | **yaml** | ${YAML_VERSION} | \`yaml\` | Free (\`gdtk\`) | Apache-2.0 |
+          | **Aseprite** | ${ASEPRITE_GIT_REF} | \`aseprite\`, \`ase\` | Non-Free (\`gdtk-non-free\`) | EULA (Proprietary) |
           EOF
           gh release view "$TAG_NAME" --json body -q .body > existing_body.md || true
           cat existing_body.md bom.md > updated_body.md
