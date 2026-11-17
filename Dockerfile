@@ -1,8 +1,8 @@
 #syntax=docker/dockerfile:1
 
-FROM node:22-bookworm-slim AS node-upstream
+FROM node:24-bookworm-slim AS node-upstream
 
-FROM ubuntu:24.04 AS toolkit
+FROM ubuntu:26.04 AS toolkit
 
 LABEL org.opencontainers.image.source=https://github.com/kidthales/docker-game-development-toolkit
 LABEL org.opencontainers.image.description="A curated collection of free tools useful for game development use cases such as build scripts or automated workflows like GitHub Actions."
@@ -11,9 +11,10 @@ LABEL org.opencontainers.image.licenses=MIT
 ENV XDG_RUNTIME_DIR=/tmp/runtime-root
 
 # Install runtime dependencies.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
 	ca-certificates \
 	curl \
+	libatomic1 \
 	libegl1 \
 	libfontconfig1 \
 	xauth \
@@ -24,7 +25,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=node-upstream /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-upstream /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
-	ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+	ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx && \
+	ldd_out="$(ldd /usr/local/bin/node)" && \
+	case "$ldd_out" in *"not found"*) printf '%s\n' "$ldd_out" >&2; exit 1 ;; esac && \
+	node --version
 
 # Install Tiled and prune non-headless GUI assets
 ARG TARGETARCH
@@ -71,8 +75,8 @@ LABEL org.opencontainers.image.description="A curated collection of free and non
 LABEL org.opencontainers.image.licenses=MIT
 
 # Install stripped Aseprite runtime dependencies.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-	libc++1-18 \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+	libc++1 \
 	libfontconfig1 \
 	libx11-6 \
 	libxcursor1 \
