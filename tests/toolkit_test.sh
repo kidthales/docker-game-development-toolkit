@@ -282,6 +282,20 @@ test_repo_governance_invariants() {
 	assert_eq "2" "$(grep -c 'docker buildx imagetools create' "$build")" \
 		"build.yml must merge multi-arch manifests via imagetools create for both targets"
 	# shellcheck disable=SC2016
+	grep -Fq 'group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}' "$build" \
+		|| fail "build.yml concurrency group must use github.head_ref || github.ref"
+	# shellcheck disable=SC2016
+	grep -Fq "cancel-in-progress: \${{ github.event_name == 'pull_request' }}" "$build" \
+		|| fail "build.yml concurrency cancel-in-progress must only cancel pull_request runs"
+	if grep -qE 'image-ref:.*:latest' "$build"; then
+		fail "build.yml Trivy image-ref must not target mutable :latest"
+	fi
+	# shellcheck disable=SC2016
+	assert_eq "2" "$(grep -c "format('pr-{0}-{1}', github.sha, matrix.arch)" "$build" | awk '{print ($1 >= 4) ? 2 : 0}')" \
+		"build.yml must tag and scan PR-scoped candidate images for both gdtk and gdtk-non-free"
+	assert_eq "4" "$(grep -c "if: \${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot\[bot\]' }}" "$build" | awk '{print ($1 >= 4) ? 4 : 0}')" \
+		"build.yml must guard lint/bake GHCR login, lint non-free check, and build-gdtk-non-free against fork and Dependabot PRs"
+	# shellcheck disable=SC2016
 	grep -Fq '1.12.2 (`amd64` AppImage) / 1.12.1 (`arm64` apt)' "$build" \
 		|| fail "build.yml release-bom Tiled version must match README.md"
 

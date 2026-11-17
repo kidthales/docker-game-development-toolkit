@@ -18,8 +18,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -36,13 +36,20 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
-        if: ${{ !github.event.pull_request.head.repo.fork }}
+        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Task Lint
+        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
         run: task lint
+      - name: Run Task Lint (Untrusted PR - Public Targets Only)
+        if: ${{ github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]' }}
+        run: |
+          task lint:dockerfile lint:actions lint:shellcheck lint:editorconfig
+          touch .env
+          docker buildx bake -f .env -f docker-bake.hcl --call=check gdtk
       - name: Run Unit Tests
         run: task test:unit
 
@@ -71,6 +78,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
+        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -89,7 +97,7 @@ jobs:
             ${{ github.event_name != 'pull_request' && format('gdtk.tags=ghcr.io/{0}/gdtk:sha-{1}-{2}', github.repository_owner, github.sha, matrix.arch) || '' }}
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
-          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || (github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch)) || '' }}
 
       - name: Run Smoke Tests (gdtk)
         if: github.event_name == 'pull_request'
@@ -100,7 +108,7 @@ jobs:
       - name: Run Trivy Vulnerability Scanner (gdtk)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ github.event_name != 'pull_request' && format('ghcr.io/{0}/gdtk:sha-{1}-{2}', github.repository_owner, github.sha, matrix.arch) || format('ghcr.io/{0}/gdtk:latest', github.repository_owner) }}
+          image-ref: ghcr.io/${{ github.repository_owner }}/gdtk:${{ github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch) || format('sha-{0}-{1}', github.sha, matrix.arch) }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: false
@@ -138,6 +146,7 @@ jobs:
   build-gdtk-non-free:
     name: Build Non-Free Toolkit (gdtk-non-free - ${{ matrix.arch }}) and Push to ghcr.io/${{ github.repository_owner }}
     needs: lint
+    if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -160,6 +169,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
+        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -178,7 +188,7 @@ jobs:
             ${{ github.event_name != 'pull_request' && format('gdtk-non-free.tags=ghcr.io/{0}/gdtk-non-free:sha-{1}-{2}', github.repository_owner, github.sha, matrix.arch) || '' }}
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
-          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || (github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch)) || '' }}
 
       - name: Run Smoke Tests (gdtk-non-free)
         if: github.event_name == 'pull_request'
@@ -189,7 +199,7 @@ jobs:
       - name: Run Trivy Vulnerability Scanner (gdtk-non-free)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ github.event_name != 'pull_request' && format('ghcr.io/{0}/gdtk-non-free:sha-{1}-{2}', github.repository_owner, github.sha, matrix.arch) || format('ghcr.io/{0}/gdtk-non-free:latest', github.repository_owner) }}
+          image-ref: ghcr.io/${{ github.repository_owner }}/gdtk-non-free:${{ github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch) || format('sha-{0}-{1}', github.sha, matrix.arch) }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: false
