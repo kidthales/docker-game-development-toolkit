@@ -66,6 +66,14 @@ docker run --rm -v "${PWD}:/workspace" gdtk-non-free:latest \
     aseprite --batch sprites/player.aseprite --sheet output/player.png --data output/player.json
 ```
 
+> [!TIP]
+> **Host-UID volume permissions (Linux / macOS)**: Pass `--user "$(id -u):$(id -g)"` to `docker run` so generated files in your mounted `/workspace` volume are owned by your host user rather than `root`:
+> ```shell
+> docker run --rm --user "$(id -u):$(id -g)" -v "${PWD}:/workspace" ghcr.io/kidthales/gdtk:latest \
+>     tiled --export-map json maps/level1.tmx maps/level1.json
+> ```
+> The image sets `HOME=/tmp` and automatically falls back to a per-UID `0700` `/tmp/runtime-$(id -u)` directory for `tiled` when running non-root.
+
 ---
 
 ### 2. Incremental Asset Pipeline with `go-task` (`Taskfile.yml`)
@@ -150,6 +158,9 @@ task test:unit
 
 # Run static analysis suite (BuildKit check, Hadolint, Actionlint, ShellCheck, EditorConfig)
 task lint
+
+# Run Seldon local CI verification gates (agent leak audit, pwsh AST, task lint, unit tests)
+pwsh ./scripts/ci-local.ps1
 
 # Print resolved bake configuration
 task print

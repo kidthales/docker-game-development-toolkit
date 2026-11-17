@@ -317,6 +317,21 @@ test_repo_governance_invariants() {
 
 	grep -qx '\.ci-local/' "$REPO_ROOT/.gitignore" \
 		|| fail ".gitignore must ignore .ci-local/"
+
+	local ci_local="$REPO_ROOT/scripts/ci-local.ps1"
+	[ -f "$ci_local" ] || fail "scripts/ci-local.ps1 must exist"
+	# shellcheck disable=SC2016
+	grep -Fq '$GateResults = [ordered]@{' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must statically declare \$GateResults for Schema v2 receipts"
+	grep -Fq 'Write-CiGateSummary' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must emit Write-CiGateSummary output"
+	grep -Fq 'task lint' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must wrap task lint"
+	grep -Fq 'task test:unit' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must run task test:unit"
+	# shellcheck disable=SC2016
+	grep -Fq -- '--user "$(id -u):$(id -g)"' "$REPO_ROOT/README.md" \
+		|| fail "README.md must document --user \"\$(id -u):\$(id -g)\" host-UID volume usage"
 }
 
 test_ldd_not_found_guard
