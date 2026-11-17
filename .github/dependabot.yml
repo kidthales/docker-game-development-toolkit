@@ -29,3 +29,12 @@ updates:
       docker:
         patterns:
           - '*'
+    ignore:
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
+      - dependency-name: ubuntu
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+
