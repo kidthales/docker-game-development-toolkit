@@ -8,7 +8,8 @@ LABEL org.opencontainers.image.source=https://github.com/kidthales/docker-game-d
 LABEL org.opencontainers.image.description="A curated collection of free tools useful for game development use cases such as build scripts or automated workflows like GitHub Actions."
 LABEL org.opencontainers.image.licenses=MIT
 
-ENV XDG_RUNTIME_DIR=/tmp/runtime-root
+ENV HOME=/tmp \
+	XDG_RUNTIME_DIR=/tmp/runtime-root
 
 # Install runtime dependencies.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
@@ -19,7 +20,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 	libfontconfig1 \
 	xauth \
 	xvfb \
-	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+	&& install -d -m 0700 /tmp/runtime-root
 
 # Install Node.js LTS runtime from clean slim upstream
 COPY --from=node-upstream /usr/local/bin/node /usr/local/bin/node
@@ -42,17 +44,18 @@ RUN if [ "$TARGETARCH" = "amd64" ] || [ -z "$TARGETARCH" ]; then \
 		rm -rf /opt/tiled/squashfs-root/usr/translations \
 			/opt/tiled/squashfs-root/usr/share/doc \
 			/opt/tiled/squashfs-root/usr/share/man && \
-		printf '#!/usr/bin/env bash\nxvfb-run /opt/tiled/squashfs-root/usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
+		printf '#!/usr/bin/env bash\nxvfb-run -a /opt/tiled/squashfs-root/usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
 	elif [ "$TARGETARCH" = "arm64" ]; then \
 		apt-get update && apt-get install -y --no-install-recommends tiled && \
-		rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-		printf '#!/usr/bin/env bash\nxvfb-run /usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
+		rm -rf /var/lib/apt/lists/* /var/tmp/* && \
+		printf '#!/usr/bin/env bash\nxvfb-run -a /usr/bin/tiled "$@"\n' > /usr/local/bin/tiled; \
 	else \
 		echo "Unsupported architecture: $TARGETARCH" && exit 1; \
 	fi && \
 	chmod +x /usr/local/bin/tiled && \
 	# Smoke test \
-	tiled --help
+	tiled --help && \
+	find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} +
 
 # Global NPM packages with cache pruning
 ARG tile_extruder_version
@@ -61,7 +64,8 @@ RUN npm install -g --omit=dev --no-audit --no-fund \
 	tile-extruder@${tile_extruder_version} \
 	yaml@${yaml_version} && \
 	npm cache clean --force && \
-	rm -rf /root/.npm /tmp/* && \
+	rm -rf /root/.npm && \
+	find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} + && \
 	# Smoke tests \
 	tile-extruder --help && \
 	yaml --help
@@ -82,7 +86,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 	libxcursor1 \
 	libxext6 \
 	libxrandr2 \
-	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+	&& rm -rf /var/lib/apt/lists/* /var/tmp/*
 
 # Install aseprite.
 COPY --from=aseprite-upstream --chmod=755 /opt/aseprite/bin /opt/aseprite/bin
