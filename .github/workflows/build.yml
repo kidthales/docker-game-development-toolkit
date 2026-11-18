@@ -119,6 +119,9 @@ jobs:
     name: Merge Multi-Arch Manifest (gdtk)
     needs: build-gdtk
     if: github.event_name != 'pull_request'
+    concurrency:
+      group: ${{ github.workflow }}-merge-gdtk
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -211,6 +214,9 @@ jobs:
     name: Merge Multi-Arch Manifest (gdtk-non-free)
     needs: build-gdtk-non-free
     if: github.event_name != 'pull_request'
+    concurrency:
+      group: ${{ github.workflow }}-merge-gdtk-non-free
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -255,7 +261,7 @@ jobs:
           TILED_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.tiled_version | select(type == "string" and length > 0)')
           TILE_EXTRUDER_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.tile_extruder_version | select(type == "string" and length > 0)')
           YAML_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.yaml_version | select(type == "string" and length > 0)')
-          ASEPRITE_GIT_REF=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target["gdtk-non-free"].contexts["aseprite-upstream"] | select(type == "string" and length > 0) | sub("@[a-z0-9]+:[a-fA-F0-9]+$"; "") | sub("^.*:"; "") | sub("-headless$"; "") | select(length > 0)')
+          ASEPRITE_GIT_REF=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target["gdtk-non-free"].contexts["aseprite-upstream"] | select(type == "string" and length > 0) | sub("@[a-z0-9]+:[a-fA-F0-9]+$"; "") | capture(":(?<ref>[^:/@]+)$").ref | sub("-headless$"; "") | select(length > 0)')
 
           cat <<EOF > bom.md
 

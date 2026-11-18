@@ -369,6 +369,16 @@ test_repo_governance_invariants() {
 	# shellcheck disable=SC2016
 	grep -Fq '(-not $IsCI) -and' "$ci_local" \
 		|| fail "scripts/ci-local.ps1 must restrict GHCR 403 Forbidden fallback strictly to non-CI local runs"
+	# Negative / boundary: degraded Gate 2 must record pass-degraded rather than undegraded pass
+	grep -Fq '"pass-degraded"' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must record pass-degraded when Gate 2 falls back locally"
+	# Negative / boundary: -CI mode must fail closed if ignored fingerprint entries exceed MaxIgnoredFiles
+	# shellcheck disable=SC2016
+	grep -Fq 'if ($IsCI -and $skippedByCount -gt 0)' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must fail closed in -CI mode when fingerprint entries are skipped by count"
+	# Negative / boundary: Gate 0 must anchor scratch/ and docs/learnings/ to the repo root
+	grep -Fq '|^(?:scratch|docs/learnings)/' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 Gate 0 must anchor scratch/ and docs/learnings/ to repo root"
 	# Negative / boundary: Gate 0 must reject tracked .ci-local/ and agent leaks while allowing local .ci-local/ untracked
 	# shellcheck disable=SC2016
 	grep -Eq '^[[:space:]]*\$TrackedLeakPattern[[:space:]]*=.*\\\.ci-local/' "$ci_local" \
@@ -411,6 +421,7 @@ test_release_bom_extraction() {
 		if [ -n "${GITHUB_ACTIONS:-}" ]; then
 			fail "jq must be available in CI to verify release-bom filters"
 		fi
+		printf 'SKIP: jq not installed; skipping release-bom jq filter checks\n' >&2
 		return 0
 	fi
 
@@ -433,10 +444,29 @@ test_release_bom_extraction() {
 	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://ghcr.io/kidthales/aseprite:%s-headless@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}}}\n' "$hcl_aseprite" > "$digest_json"
 	assert_eq "$hcl_aseprite" "$(jq -er "$f_aseprite" "$digest_json")" "jq filter must handle digest-pinned aseprite-upstream context"
 
+	# Boundary: registry host with port and tag must extract tag, not host:port
+	local port_tag_json="$TEST_TMP/port-tag-bake.json"
+	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://localhost:5000/aseprite:%s-headless"}}}}\n' "$hcl_aseprite" > "$port_tag_json"
+	assert_eq "$hcl_aseprite" "$(jq -er "$f_aseprite" "$port_tag_json")" "jq filter must extract tag when registry includes a port"
+
+	# Negative: registry host with port and no tag must fail closed
+	local port_notag_json="$TEST_TMP/port-notag-bake.json"
+	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://localhost:5000/aseprite"}}}}\n' > "$port_notag_json"
+	local rc=0
+	jq -er "$f_aseprite" "$port_notag_json" >/dev/null 2>&1 || rc=$?
+	[ "$rc" -ne 0 ] || fail "jq -er must fail when registry has port and no tag"
+
+	# Negative: digest-only reference with no tag must fail closed
+	local digest_only_json="$TEST_TMP/digest-only-bake.json"
+	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://ghcr.io/kidthales/aseprite@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}}}\n' > "$digest_only_json"
+	rc=0
+	jq -er "$f_aseprite" "$digest_only_json" >/dev/null 2>&1 || rc=$?
+	[ "$rc" -ne 0 ] || fail "jq -er must fail when digest-only context omits tag"
+
 	# Negative: empty arg must fail closed with jq -er
 	local empty_json="$TEST_TMP/empty-bake.json"
 	printf '{"target":{"gdtk":{"args":{"tiled_version":""}}}}\n' > "$empty_json"
-	local rc=0
+	rc=0
 	jq -er "$f_tiled" "$empty_json" >/dev/null 2>&1 || rc=$?
 	[ "$rc" -ne 0 ] || fail "jq -er must fail when tiled_version is empty"
 }

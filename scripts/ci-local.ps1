@@ -159,6 +159,9 @@ function Get-WorkingTreeFingerprint {
     if ($skippedByDepth -gt 0 -or $skippedByCount -gt 0 -or $largeFileCount -gt 0) {
         Write-Host "  -> [INFO] Fingerprint bounds applied: skipped_depth=$skippedByDepth (max_depth=$MaxIgnoredDepth), skipped_count=$skippedByCount (max_files=$MaxIgnoredFiles), size_mtime_only=$largeFileCount (>10MiB)." -ForegroundColor DarkGray
     }
+    if ($IsCI -and $skippedByCount -gt 0) {
+        throw "Gate 3 Failed: Ignored file count exceeded fingerprint cap ($MaxIgnoredFiles); $skippedByCount file(s) skipped in -CI mode."
+    }
 
     return (@(
         "STATUS:"
@@ -207,8 +210,8 @@ try {
     $GateResults["gate0_agent_leaks"] = "fail"
     try {
         $StepTimer = [System.Diagnostics.Stopwatch]::StartNew()
-        $TrackedLeakPattern = '(^|/)(\.agents?/|\.gemini/|\.ai/|\.cursor/|\.claude/|\.ci-local/|scratch/|docs/learnings/|(AGENTS|GEMINI|CLAUDE)\.md$)'
-        $UntrackedLeakPattern = '(^|/)(\.agents?/|\.gemini/|\.ai/|\.cursor/|\.claude/|scratch/|docs/learnings/|(AGENTS|GEMINI|CLAUDE)\.md$)'
+        $TrackedLeakPattern = '(^|/)(?:\.agents?/|\.gemini/|\.ai/|\.cursor/|\.claude/|\.ci-local/|(?:AGENTS|GEMINI|CLAUDE)\.md$)|^(?:scratch|docs/learnings)/'
+        $UntrackedLeakPattern = '(^|/)(?:\.agents?/|\.gemini/|\.ai/|\.cursor/|\.claude/|(?:AGENTS|GEMINI|CLAUDE)\.md$)|^(?:scratch|docs/learnings)/'
 
         $TrackedFiles = @(& git ls-files)
         if ($LASTEXITCODE -ne 0) {
@@ -356,10 +359,11 @@ try {
             }
         }
 
-        $GateResults["gate2_task_lint"] = "pass"
         if ($gate2Degraded) {
+            $GateResults["gate2_task_lint"] = "pass-degraded"
             Write-Pass "task lint passed (degraded: non-free bake skipped due to unauthenticated private GHCR)." $StepTimer
         } else {
+            $GateResults["gate2_task_lint"] = "pass"
             Write-Pass "task lint passed." $StepTimer
         }
     } finally {
