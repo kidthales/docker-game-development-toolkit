@@ -21,8 +21,8 @@ tasks:
       - task: test:unit
       - task: test:gdtk
       - |
-        if docker image inspect "${IMAGES_PREFIX:-}gdtk-non-free:latest" >/dev/null 2>&1; then
-          docker run --rm "${IMAGES_PREFIX:-}gdtk-non-free:latest" aseprite --version
+        if docker image inspect "${IMAGES_PREFIX:-}gdtk-non-free:${IMAGES_TAG:-latest}" >/dev/null 2>&1; then
+          docker run --rm "${IMAGES_PREFIX:-}gdtk-non-free:${IMAGES_TAG:-latest}" aseprite --version
         fi
 
   test:unit:
@@ -33,15 +33,15 @@ tasks:
   test:gdtk:
     desc: Run smoke tests against built free toolkit image
     cmds:
-      - docker run --rm "${IMAGES_PREFIX:-}gdtk:latest" tiled --version
-      - docker run --rm -u 1000:1000 "${IMAGES_PREFIX:-}gdtk:latest" tiled --version
-      - docker run --rm "${IMAGES_PREFIX:-}gdtk:latest" tile-extruder --version
-      - docker run --rm "${IMAGES_PREFIX:-}gdtk:latest" yaml --help
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk:${IMAGES_TAG:-latest}" tiled --version
+      - docker run --rm -u 1000:1000 "${IMAGES_PREFIX:-}gdtk:${IMAGES_TAG:-latest}" tiled --version
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk:${IMAGES_TAG:-latest}" tile-extruder --version
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk:${IMAGES_TAG:-latest}" yaml --help
 
   test:non-free:
     desc: Run smoke tests against built non-free image
     cmds:
-      - docker run --rm "${IMAGES_PREFIX:-}gdtk-non-free:latest" aseprite --version
+      - docker run --rm "${IMAGES_PREFIX:-}gdtk-non-free:${IMAGES_TAG:-latest}" aseprite --version
 
   lint:
     desc: Run all static analysis checks (BuildKit check, Hadolint, Actionlint, ShellCheck, EditorConfig)

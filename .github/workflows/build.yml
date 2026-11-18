@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -36,16 +36,16 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
-        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+        if: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Task Lint
-        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+        if: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
         run: task lint
       - name: Run Task Lint (Untrusted PR - Public Targets Only)
-        if: ${{ github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]' }}
+        if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
         run: |
           task lint:dockerfile lint:actions lint:shellcheck lint:editorconfig
           touch .env
@@ -64,7 +64,7 @@ jobs:
           - runner: ubuntu-latest
             platform: linux/amd64
             arch: amd64
-          - runner: ubuntu-26.04-arm
+          - runner: ubuntu-24.04-arm
             platform: linux/arm64
             arch: arm64
     permissions:
@@ -78,11 +78,12 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
-        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+        if: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Ephemeral sha-*-<arch> tags are pruned after 30 days by .github/workflows/clean.yml.
       - uses: docker/bake-action@v7
         with:
           targets: gdtk
@@ -94,15 +95,15 @@ jobs:
             *.platform=${{ matrix.platform }}
             *.cache-from=type=gha,scope=gdtk-${{ matrix.arch }}
             *.cache-to=type=gha,mode=max,scope=gdtk-${{ matrix.arch }}
-            ${{ github.event_name != 'pull_request' && format('gdtk.tags=ghcr.io/{0}/gdtk:sha-{1}-{2}', github.repository_owner, github.sha, matrix.arch) || '' }}
+            gdtk.tags=ghcr.io/${{ github.repository_owner }}/gdtk:${{ github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch) || format('sha-{0}-{1}', github.sha, matrix.arch) }}
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
-          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || (github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch)) || '' }}
 
       - name: Run Smoke Tests (gdtk)
         if: github.event_name == 'pull_request'
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
+          IMAGES_TAG: pr-${{ github.sha }}-${{ matrix.arch }}
         run: task test:gdtk
 
       - name: Run Trivy Vulnerability Scanner (gdtk)
@@ -146,7 +147,7 @@ jobs:
   build-gdtk-non-free:
     name: Build Non-Free Toolkit (gdtk-non-free - ${{ matrix.arch }}) and Push to ghcr.io/${{ github.repository_owner }}
     needs: lint
-    if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+    if: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -155,7 +156,7 @@ jobs:
           - runner: ubuntu-latest
             platform: linux/amd64
             arch: amd64
-          - runner: ubuntu-26.04-arm
+          - runner: ubuntu-24.04-arm
             platform: linux/arm64
             arch: arm64
     permissions:
@@ -169,11 +170,12 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
-        if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' }}
+        if: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Ephemeral sha-*-<arch> tags are pruned after 30 days by .github/workflows/clean.yml.
       - uses: docker/bake-action@v7
         with:
           targets: gdtk-non-free
@@ -185,15 +187,15 @@ jobs:
             *.platform=${{ matrix.platform }}
             *.cache-from=type=gha,scope=gdtk-non-free-${{ matrix.arch }}
             *.cache-to=type=gha,mode=max,scope=gdtk-non-free-${{ matrix.arch }}
-            ${{ github.event_name != 'pull_request' && format('gdtk-non-free.tags=ghcr.io/{0}/gdtk-non-free:sha-{1}-{2}', github.repository_owner, github.sha, matrix.arch) || '' }}
+            gdtk-non-free.tags=ghcr.io/${{ github.repository_owner }}/gdtk-non-free:${{ github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch) || format('sha-{0}-{1}', github.sha, matrix.arch) }}
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
-          IMAGES_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || (github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch)) || '' }}
 
       - name: Run Smoke Tests (gdtk-non-free)
         if: github.event_name == 'pull_request'
         env:
           IMAGES_PREFIX: ghcr.io/${{ github.repository_owner }}/
+          IMAGES_TAG: pr-${{ github.sha }}-${{ matrix.arch }}
         run: task test:non-free
 
       - name: Run Trivy Vulnerability Scanner (gdtk-non-free)
@@ -253,14 +255,14 @@ jobs:
           TILED_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.tiled_version | select(type == "string" and length > 0)')
           TILE_EXTRUDER_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.tile_extruder_version | select(type == "string" and length > 0)')
           YAML_VERSION=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target.gdtk.args.yaml_version | select(type == "string" and length > 0)')
-          ASEPRITE_GIT_REF=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target["gdtk-non-free"].contexts["aseprite-upstream"] | select(type == "string" and length > 0) | sub("^.*:"; "") | sub("-headless$"; "") | select(length > 0)')
+          ASEPRITE_GIT_REF=$(printf '%s\n' "$BAKE_JSON" | jq -er '.target["gdtk-non-free"].contexts["aseprite-upstream"] | select(type == "string" and length > 0) | sub("@[a-z0-9]+:[a-fA-F0-9]+$"; "") | sub("^.*:"; "") | sub("-headless$"; "") | select(length > 0)')
 
           cat <<EOF > bom.md
 
           ### Contained Tools & Bill of Materials (BOM)
           | Tool | Version | CLI Binary | Tier | License |
           | :--- | :--- | :--- | :--- | :--- |
-          | **Tiled** | ${TILED_VERSION} (\`amd64\` AppImage) / Ubuntu \`apt\` (\`arm64\`) | \`tiled\` | Free (\`gdtk\`) | GPL-2.0-or-later |
+          | **Tiled** | ${TILED_VERSION} (\`amd64\` AppImage) / Ubuntu 26.04 LTS \`apt\` (\`arm64\`) | \`tiled\` | Free (\`gdtk\`) | GPL-2.0-or-later |
           | **tile-extruder** | ${TILE_EXTRUDER_VERSION} | \`tile-extruder\` | Free (\`gdtk\`) | MIT |
           | **yaml** | ${YAML_VERSION} | \`yaml\` | Free (\`gdtk\`) | Apache-2.0 |
           | **Aseprite** | ${ASEPRITE_GIT_REF} | \`aseprite\`, \`ase\` | Non-Free (\`gdtk-non-free\`) | EULA (Proprietary) |

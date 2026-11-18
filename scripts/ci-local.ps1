@@ -66,11 +66,17 @@ function Write-Fail {
 }
 
 function Write-CiGateSummary {
-    param([System.Collections.IDictionary]$Results)
+    param(
+        [System.Collections.IDictionary]$Results,
+        [string[]]$DegradedGates = @()
+    )
     Write-Host "`nGate Summary:" -ForegroundColor Cyan
     foreach ($k in $Results.Keys) {
         $v = "$($Results[$k])".ToUpperInvariant()
         Write-Host "  [${k}: $v]"
+        if ($DegradedGates -contains $k) {
+            Write-Host "    -> degraded mode: private non-free bake check skipped (unauthenticated GHCR)" -ForegroundColor Yellow
+        }
     }
 }
 
@@ -93,6 +99,7 @@ function Get-WorkingTreeFingerprint {
     $MaxIgnoredDepth = 5
     $MaxIgnoredFiles = 200
     $MaxHashBytes = 10485760
+    $SecretFilePattern = '(^|/)(\.env($|\.(?!example$|sample$|template$))|.*\.pem$|.*\.key($|\.)|id_(rsa|ed25519|ecdsa|dsa)|.*credentials.*|\.?_?netrc$|\.npmrc$|.*private-key.*)'
 
     $rawIgnoredPaths = @(& git -c core.quotePath=false ls-files --others --ignored --exclude-standard)
     if ($LASTEXITCODE -ne 0) {
@@ -103,12 +110,14 @@ function Get-WorkingTreeFingerprint {
         $rawIgnoredPaths |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace($_) -and
-                $_ -notmatch '(^|/)\.ci-local/'
+                $_ -notmatch '(^|/)\.ci-local/' -and
+                $_ -notmatch $SecretFilePattern
             }
     )
     $depthFiltered = @(
         $candidateIgnored |
-            Where-Object { ($_ -split '/').Count -le $MaxIgnoredDepth }
+            Where-Object { ($_ -split '/').Count -le $MaxIgnoredDepth } |
+            Sort-Object -Unique
     )
     $skippedByDepth = $candidateIgnored.Count - $depthFiltered.Count
     $ignoredPaths = @($depthFiltered | Select-Object -First $MaxIgnoredFiles)
@@ -172,6 +181,7 @@ $GateResults = [ordered]@{
     "gate2_task_lint"   = "not-applicable"
     "gate3_unit_tests"  = "not-applicable"
 }
+$DegradedGates = [System.Collections.Generic.List[string]]::new()
 
 $MaxGate = 3
 
@@ -285,6 +295,9 @@ try {
     # -------------------------------------------------------------
     Enter-CiGate 2 $MaxGate "Running static analysis suite (task lint)..."
     $GateResults["gate2_task_lint"] = "fail"
+    $dotEnvPath = Join-Path $RootDir ".env"
+    $hadDotEnv = Test-Path -LiteralPath $dotEnvPath -PathType Leaf
+    $gate2Degraded = $false
     try {
         $StepTimer = [System.Diagnostics.Stopwatch]::StartNew()
         $prevErrorAction = $ErrorActionPreference
@@ -301,14 +314,15 @@ try {
         }
 
         if ($lintExitCode -ne 0) {
-            $lintOutput = $lintLines -join "`n"
             $isPrivateGhcrDenied = (
                 (-not $IsCI) -and
-                ($lintOutput -match 'ghcr\.io/(?:v2/)?kidthales/aseprite') -and
-                ($lintOutput -match '(403 Forbidden|401 Unauthorized|denied|unauthorized)')
+                (@($lintLines | Where-Object {
+                    ($_ -match 'ghcr\.io/(?:v2/)?kidthales/aseprite') -and
+                    ($_ -match '(403 Forbidden|401 Unauthorized|pull access denied|requested access to the resource is denied|unauthorized:\s*authentication required)')
+                }).Count -gt 0)
             )
             if ($isPrivateGhcrDenied) {
-                Write-Host "  -> [WARN] task lint:bake cannot access private ghcr.io/kidthales/aseprite without GHCR auth; verifying public gdtk bake target and remaining lint tasks..." -ForegroundColor Yellow
+                Write-Host "  -> [WARN] task lint:bake cannot access private ghcr.io/kidthales/aseprite without GHCR auth; verifying public gdtk bake target and remaining lint tasks (degraded coverage)..." -ForegroundColor Yellow
 
                 & task lint:dockerfile lint:actions lint:shellcheck lint:editorconfig
                 if ($LASTEXITCODE -ne 0) {
@@ -316,14 +330,26 @@ try {
                     throw "Gate 2 Failed: task lint subtasks reported static analysis errors."
                 }
 
-                if (-not (Test-Path -LiteralPath (Join-Path $RootDir ".env") -PathType Leaf)) {
-                    New-Item -ItemType File -Path (Join-Path $RootDir ".env") | Out-Null
+                $tempEnvPath = $null
+                try {
+                    if ($hadDotEnv) {
+                        $bakeEnvPath = $dotEnvPath
+                    } else {
+                        $tempEnvPath = [System.IO.Path]::GetTempFileName()
+                        $bakeEnvPath = $tempEnvPath
+                    }
+                    & docker buildx bake -f $bakeEnvPath -f docker-bake.hcl --call=check gdtk
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Fail "docker buildx bake --call=check gdtk failed with exit code $LASTEXITCODE."
+                        throw "Gate 2 Failed: public gdtk bake check failed."
+                    }
+                } finally {
+                    if ($tempEnvPath -and (Test-Path -LiteralPath $tempEnvPath -PathType Leaf)) {
+                        Remove-Item -LiteralPath $tempEnvPath -Force -ErrorAction SilentlyContinue
+                    }
                 }
-                & docker buildx bake -f .env -f docker-bake.hcl --call=check gdtk
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Fail "docker buildx bake --call=check gdtk failed with exit code $LASTEXITCODE."
-                    throw "Gate 2 Failed: public gdtk bake check failed."
-                }
+                $gate2Degraded = $true
+                $DegradedGates.Add("gate2_task_lint")
             } else {
                 Write-Fail "task lint failed with exit code $lintExitCode."
                 throw "Gate 2 Failed: task lint reported static analysis errors."
@@ -331,8 +357,15 @@ try {
         }
 
         $GateResults["gate2_task_lint"] = "pass"
-        Write-Pass "task lint passed." $StepTimer
+        if ($gate2Degraded) {
+            Write-Pass "task lint passed (degraded: non-free bake skipped due to unauthenticated private GHCR)." $StepTimer
+        } else {
+            Write-Pass "task lint passed." $StepTimer
+        }
     } finally {
+        if ((-not $hadDotEnv) -and (Test-Path -LiteralPath $dotEnvPath -PathType Leaf)) {
+            Remove-Item -LiteralPath $dotEnvPath -Force -ErrorAction SilentlyContinue
+        }
         Exit-CiGate
     }
 
@@ -367,7 +400,7 @@ try {
     # -------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------
-    Write-CiGateSummary $GateResults
+    Write-CiGateSummary $GateResults -DegradedGates $DegradedGates
 
     $TotalElapsed = [math]::Round($TotalTimer.Elapsed.TotalSeconds, 2)
     Write-Host "`n====================================================" -ForegroundColor Green
@@ -376,7 +409,7 @@ try {
 } catch {
     Exit-CiGate
     Write-Fail $_.Exception.Message
-    Write-CiGateSummary $GateResults
+    Write-CiGateSummary $GateResults -DegradedGates $DegradedGates
     Write-Host "`n====================================================" -ForegroundColor Red
     Write-Host " Local CI Verification FAILED" -ForegroundColor Red
     Write-Host "====================================================" -ForegroundColor Red
