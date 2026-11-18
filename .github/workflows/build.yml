@@ -108,6 +108,8 @@ jobs:
 
       - name: Run Trivy Vulnerability Scanner (gdtk)
         uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_PLATFORM: ${{ matrix.platform }}
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/gdtk:${{ github.event_name == 'pull_request' && format('pr-{0}-{1}', github.sha, matrix.arch) || format('sha-{0}-{1}', github.sha, matrix.arch) }}
           format: 'table'
