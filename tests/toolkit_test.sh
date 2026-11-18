@@ -288,6 +288,15 @@ test_repo_governance_invariants() {
 	# shellcheck disable=SC2016
 	assert_eq "2" "$(grep -c '\*\.platform=\${{ matrix\.platform }}' "$build")" \
 		"build.yml must pass *.platform=\${{ matrix.platform }} for both bake jobs"
+	# shellcheck disable=SC2016
+	assert_eq "2" "$(grep -c 'TRIVY_PLATFORM: \${{ matrix\.platform }}' "$build")" \
+		"build.yml must set TRIVY_PLATFORM: \${{ matrix.platform }} for both Trivy scan steps"
+	awk '
+		/- name: Run Trivy Vulnerability Scanner \(gdtk(-non-free)?\)/ { in_trivy=1; next }
+		in_trivy && /^[[:space:]]*- name:/ { in_trivy=0 }
+		in_trivy && /TRIVY_PLATFORM: \$\{\{ matrix\.platform \}\}/ { count++ }
+		END { if (count != 2) exit 1 }
+	' "$build" || fail "build.yml must set TRIVY_PLATFORM: \${{ matrix.platform }} inside both Trivy scanner steps"
 	assert_eq "2" "$(grep -c 'docker buildx imagetools create' "$build")" \
 		"build.yml must merge multi-arch manifests via imagetools create for both targets"
 	# shellcheck disable=SC2016
