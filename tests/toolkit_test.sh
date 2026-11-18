@@ -224,6 +224,12 @@ EOF
 		|| fail "Taskfile.yml must define lint:shellcheck"
 	grep -q 'bash tests/toolkit_test.sh' "$REPO_ROOT/Taskfile.yml" \
 		|| fail "Taskfile.yml test:unit must invoke tests/toolkit_test.sh"
+	if grep -qE 'gdtk(-non-free)?:latest"' "$REPO_ROOT/Taskfile.yml"; then
+		fail "Taskfile.yml smoke tests must use \${IMAGES_TAG:-latest}, not hardcoded :latest"
+	fi
+	# shellcheck disable=SC2016
+	assert_eq "7" "$(grep -c '\${IMAGES_TAG:-latest}' "$REPO_ROOT/Taskfile.yml")" \
+		"Taskfile.yml test/test:gdtk/test:non-free must parameterize image tags via \${IMAGES_TAG:-latest}"
 }
 
 # 4. clean.yml exclude-tags matching and rejection
@@ -239,7 +245,7 @@ test_clean_workflow_tags() {
 		fi
 	done
 
-	for tag in "sha-5a36b5d" "pr-59" "dev" "latest-dev" "v1.2" "1.2" ""; do
+	for tag in "sha-5a36b5d" "sha-5a36b5d-amd64" "sha-5a36b5d-arm64" "pr-59" "dev" "latest-dev" "v1.2" "1.2" ""; do
 		if printf '%s\n' "$tag" | grep -Eq "$pattern"; then
 			fail "clean.yml exclude-tags must not protect ephemeral tag '$tag'"
 		fi
@@ -267,24 +273,202 @@ test_repo_governance_invariants() {
 	' "$build" || fail "build.yml top-level permissions must not grant packages: write"
 
 	grep -q 'run: task test:unit' "$build" || fail "build.yml lint job must run task test:unit"
+	if grep -q 'setup-qemu-action' "$build"; then
+		fail "build.yml must not use QEMU emulation (setup-qemu-action)"
+	fi
+	if [ -e "$REPO_ROOT/.github/actionlint.yaml" ]; then
+		fail ".github/actionlint.yaml must not exist to allow-list self-hosted-runner labels"
+	fi
 	assert_eq "2" "$(grep -c "load: \${{ github.event_name == 'pull_request' }}" "$build")" \
-		"build.yml must load single-arch PR images for both gdtk and gdtk-non-free"
-	assert_eq "2" "$(grep -c '\*\.platform=linux/amd64' "$build")" \
-		"build.yml must pin *.platform=linux/amd64 on pull_request for both bake jobs"
+		"build.yml must load per-arch PR candidate images for both gdtk and gdtk-non-free"
+	assert_eq "2" "$(grep -c 'runner: ubuntu-latest' "$build")" \
+		"build.yml must define ubuntu-latest (amd64) matrix leg for both bake jobs"
+	assert_eq "2" "$(grep -c 'runner: ubuntu-24.04-arm' "$build")" \
+		"build.yml must define ubuntu-24.04-arm (arm64) matrix leg for both bake jobs"
 	# shellcheck disable=SC2016
-	grep -Fq '1.12.2 (`amd64` AppImage) / 1.12.1 (`arm64` apt)' "$build" \
-		|| fail "build.yml release-bom Tiled version must match README.md"
+	assert_eq "2" "$(grep -c '\*\.platform=\${{ matrix\.platform }}' "$build")" \
+		"build.yml must pass *.platform=\${{ matrix.platform }} for both bake jobs"
+	assert_eq "2" "$(grep -c 'docker buildx imagetools create' "$build")" \
+		"build.yml must merge multi-arch manifests via imagetools create for both targets"
+	# shellcheck disable=SC2016
+	grep -Fq 'group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}' "$build" \
+		|| fail "build.yml concurrency group must use github.event.pull_request.number || github.ref"
+	# shellcheck disable=SC2016
+	grep -Fq "cancel-in-progress: \${{ github.event_name == 'pull_request' }}" "$build" \
+		|| fail "build.yml concurrency cancel-in-progress must only cancel pull_request runs"
+	if grep -qE '(image-ref:|gdtk(-non-free)?\.tags=).*(:latest|latest})' "$build"; then
+		fail "build.yml bake tags and Trivy image-ref must not target mutable :latest"
+	fi
+	# shellcheck disable=SC2016
+	assert_eq "4" "$(grep -c "format('pr-{0}-{1}', github.sha, matrix.arch)" "$build")" \
+		"build.yml must tag and scan PR-scoped candidate images for both gdtk and gdtk-non-free"
+	# shellcheck disable=SC2016
+	assert_eq "2" "$(grep -c 'IMAGES_TAG: pr-${{ github.sha }}-${{ matrix.arch }}' "$build")" \
+		"build.yml smoke test steps must set PR-scoped IMAGES_TAG for both gdtk and gdtk-non-free"
+	if grep -qE 'if:.*github\.actor' "$build"; then
+		fail "build.yml guards must not key on mutable github.actor"
+	fi
+	assert_eq "5" "$(grep -cF "if: \${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]') }}" "$build")" \
+		"build.yml must guard all 5 trusted steps/jobs against fork and Dependabot PRs without skipping push/release"
+	assert_eq "1" "$(grep -cF "if: \${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}" "$build")" \
+		"build.yml must guard untrusted PR lint step with scoped pull_request condition"
+	# shellcheck disable=SC2016
+	grep -Fq 'docker buildx bake -f docker-bake.hcl --print gdtk gdtk-non-free' "$build" \
+		|| fail "build.yml release-bom must resolve versions via docker buildx bake --print"
+	local var
+	for var in TILED_VERSION TILE_EXTRUDER_VERSION YAML_VERSION ASEPRITE_GIT_REF; do
+		grep -Fq "${var}=" "$build" \
+			|| fail "build.yml release-bom must dynamically extract ${var} via jq"
+	done
+	if grep -qE '\| \*\*(Tiled|tile-extruder|yaml|Aseprite)\*\* \| [0-9v]' "$build"; then
+		fail "build.yml release-bom must not hardcode tool versions"
+	fi
+	# shellcheck disable=SC2016
+	grep -Fq 'Ubuntu 26.04 LTS \`apt\` (\`arm64\`)' "$build" \
+		|| fail "build.yml release-bom Tiled row must state Ubuntu 26.04 LTS apt (arm64) source"
+
+	local hcl_tiled hcl_extruder hcl_yaml hcl_aseprite
+	hcl_tiled="$(sed -n 's/^variable "TILED_VERSION" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+	hcl_extruder="$(sed -n 's/^variable "TILE_EXTRUDER_VERSION" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+	hcl_yaml="$(sed -n 's/^variable "YAML_VERSION" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+	hcl_aseprite="$(sed -n 's/^variable "ASEPRITE_GIT_REF" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+	[ -n "$hcl_tiled" ] && [ -n "$hcl_extruder" ] && [ -n "$hcl_yaml" ] && [ -n "$hcl_aseprite" ] \
+		|| fail "docker-bake.hcl missing expected default tool version variables"
+	grep -Fq "| **[Tiled](https://github.com/mapeditor/tiled)** | ${hcl_tiled} (\`amd64\` AppImage)" "$REPO_ROOT/README.md" \
+		|| fail "README.md Tiled BOM version must match docker-bake.hcl ($hcl_tiled)"
+	grep -Fq "| **[tile-extruder](https://github.com/sporadic-labs/tile-extruder)** | ${hcl_extruder} |" "$REPO_ROOT/README.md" \
+		|| fail "README.md tile-extruder BOM version must match docker-bake.hcl ($hcl_extruder)"
+	grep -Fq "| **[yaml](https://github.com/eemeli/yaml)** | ${hcl_yaml} |" "$REPO_ROOT/README.md" \
+		|| fail "README.md yaml BOM version must match docker-bake.hcl ($hcl_yaml)"
+	grep -Fq "| **[Aseprite](https://github.com/aseprite/aseprite)** | ${hcl_aseprite} |" "$REPO_ROOT/README.md" \
+		|| fail "README.md Aseprite BOM version must match docker-bake.hcl ($hcl_aseprite)"
 
 	grep -q 'find /tmp/runtime-root -mindepth 1 -delete' "$REPO_ROOT/Dockerfile" \
 		|| fail "Dockerfile must clear /tmp/runtime-root contents after build smoke tests"
 	if grep -q '/root/\.npm' "$REPO_ROOT/Dockerfile"; then
 		fail "Dockerfile should not contain dead rm -rf /root/.npm when HOME=/tmp"
 	fi
-	assert_eq "2" "$(grep -c 'find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} +' "$REPO_ROOT/Dockerfile" | awk '{print ($1 >= 4) ? 2 : 0}')" \
-		"Dockerfile must prune /tmp across both toolkit and non-free stages"
+	assert_eq "4" "$(grep -c 'find /tmp -mindepth 1 -maxdepth 1 ! -name runtime-root -exec rm -rf {} +' "$REPO_ROOT/Dockerfile")" \
+		"Dockerfile must prune /tmp in all 4 cleanup steps across toolkit and non-free stages"
 
 	grep -qx '\.ci-local/' "$REPO_ROOT/.gitignore" \
 		|| fail ".gitignore must ignore .ci-local/"
+
+	local ci_local="$REPO_ROOT/scripts/ci-local.ps1"
+	[ -f "$ci_local" ] || fail "scripts/ci-local.ps1 must exist"
+	# shellcheck disable=SC2016
+	grep -Fq '$GateResults = [ordered]@{' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must statically declare \$GateResults for Schema v2 receipts"
+	grep -Fq 'Write-CiGateSummary' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must emit Write-CiGateSummary output"
+	grep -Fq 'task lint' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must wrap task lint"
+	grep -Fq 'task test:unit' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must run task test:unit"
+	# Negative / boundary: -CI mode must fail closed on 403 Forbidden / denied rather than falling back
+	# shellcheck disable=SC2016
+	grep -Fq '(-not $IsCI) -and' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must restrict GHCR 403 Forbidden fallback strictly to non-CI local runs"
+	# Negative / boundary: degraded Gate 2 must record pass-degraded rather than undegraded pass
+	grep -Fq '"pass-degraded"' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must record pass-degraded when Gate 2 falls back locally"
+	# Negative / boundary: -CI mode must fail closed if ignored fingerprint entries exceed MaxIgnoredFiles
+	# shellcheck disable=SC2016
+	grep -Fq 'if ($IsCI -and $skippedByCount -gt 0)' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 must fail closed in -CI mode when fingerprint entries are skipped by count"
+	# Negative / boundary: Gate 0 must anchor scratch/ and docs/learnings/ to the repo root
+	grep -Fq '|^(?:scratch|docs/learnings)/' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 Gate 0 must anchor scratch/ and docs/learnings/ to repo root"
+	# Negative / boundary: Gate 0 must reject tracked .ci-local/ and agent leaks while allowing local .ci-local/ untracked
+	# shellcheck disable=SC2016
+	grep -Eq '^[[:space:]]*\$TrackedLeakPattern[[:space:]]*=.*\\\.ci-local/' "$ci_local" \
+		|| fail "scripts/ci-local.ps1 Gate 0 \$TrackedLeakPattern must reject tracked .ci-local/ files"
+	# shellcheck disable=SC2016
+	if grep -Eq '^[[:space:]]*\$UntrackedLeakPattern[[:space:]]*=.*\\\.ci-local/' "$ci_local"; then
+		fail "scripts/ci-local.ps1 Gate 0 \$UntrackedLeakPattern must allow untracked .ci-local/ receipts"
+	fi
+	# shellcheck disable=SC2016
+	if grep -qE '\[switch\]\$(Quick|Skip)' "$ci_local"; then
+		fail "scripts/ci-local.ps1 must reject/omit skip or quick switches"
+	fi
+	# shellcheck disable=SC2016
+	grep -Fq -- '--user "$(id -u):$(id -g)"' "$REPO_ROOT/README.md" \
+		|| fail "README.md must document --user \"\$(id -u):\$(id -g)\" host-UID volume usage"
+}
+
+# 6. Dynamic release BOM extraction against live docker buildx bake --print output
+test_release_bom_extraction() {
+	local bake_json="$TEST_TMP/bake-print.json"
+	docker buildx bake -f "$REPO_ROOT/docker-bake.hcl" --print gdtk gdtk-non-free > "$bake_json" \
+		|| fail "docker buildx bake --print gdtk gdtk-non-free failed"
+
+	local hcl_tiled hcl_extruder hcl_yaml hcl_aseprite
+	hcl_tiled="$(sed -n 's/^variable "TILED_VERSION" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+	hcl_extruder="$(sed -n 's/^variable "TILE_EXTRUDER_VERSION" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+	hcl_yaml="$(sed -n 's/^variable "YAML_VERSION" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+	hcl_aseprite="$(sed -n 's/^variable "ASEPRITE_GIT_REF" { default = "\([^"]*\)" }/\1/p' "$REPO_ROOT/docker-bake.hcl")"
+
+	grep -Fq "\"tiled_version\": \"$hcl_tiled\"" "$bake_json" \
+		|| fail "bake --print JSON missing expected tiled_version '$hcl_tiled'"
+	grep -Fq "\"tile_extruder_version\": \"$hcl_extruder\"" "$bake_json" \
+		|| fail "bake --print JSON missing expected tile_extruder_version '$hcl_extruder'"
+	grep -Fq "\"yaml_version\": \"$hcl_yaml\"" "$bake_json" \
+		|| fail "bake --print JSON missing expected yaml_version '$hcl_yaml'"
+	grep -Fq "\"aseprite-upstream\": \"docker-image://ghcr.io/kidthales/aseprite:${hcl_aseprite}-headless\"" "$bake_json" \
+		|| fail "bake --print JSON missing expected aseprite-upstream context"
+
+	if ! command -v jq >/dev/null 2>&1; then
+		if [ -n "${GITHUB_ACTIONS:-}" ]; then
+			fail "jq must be available in CI to verify release-bom filters"
+		fi
+		printf 'SKIP: jq not installed; skipping release-bom jq filter checks\n' >&2
+		return 0
+	fi
+
+	local build="$REPO_ROOT/.github/workflows/build.yml"
+	local f_tiled f_extruder f_yaml f_aseprite
+	f_tiled="$(sed -n "s/.*TILED_VERSION=\$(printf '%s\\\\n' \"\$BAKE_JSON\" | jq -er '\(.*\)')/\1/p" "$build")"
+	f_extruder="$(sed -n "s/.*TILE_EXTRUDER_VERSION=\$(printf '%s\\\\n' \"\$BAKE_JSON\" | jq -er '\(.*\)')/\1/p" "$build")"
+	f_yaml="$(sed -n "s/.*YAML_VERSION=\$(printf '%s\\\\n' \"\$BAKE_JSON\" | jq -er '\(.*\)')/\1/p" "$build")"
+	f_aseprite="$(sed -n "s/.*ASEPRITE_GIT_REF=\$(printf '%s\\\\n' \"\$BAKE_JSON\" | jq -er '\(.*\)')/\1/p" "$build")"
+	[ -n "$f_tiled" ] && [ -n "$f_extruder" ] && [ -n "$f_yaml" ] && [ -n "$f_aseprite" ] \
+		|| fail "failed to extract jq filter expressions from build.yml"
+
+	assert_eq "$hcl_tiled" "$(jq -er "$f_tiled" "$bake_json")" "jq filter for TILED_VERSION failed"
+	assert_eq "$hcl_extruder" "$(jq -er "$f_extruder" "$bake_json")" "jq filter for TILE_EXTRUDER_VERSION failed"
+	assert_eq "$hcl_yaml" "$(jq -er "$f_yaml" "$bake_json")" "jq filter for YAML_VERSION failed"
+	assert_eq "$hcl_aseprite" "$(jq -er "$f_aseprite" "$bake_json")" "jq filter for ASEPRITE_GIT_REF failed"
+
+	# Boundary: digest-pinned aseprite-upstream context must still extract clean git ref
+	local digest_json="$TEST_TMP/digest-bake.json"
+	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://ghcr.io/kidthales/aseprite:%s-headless@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}}}\n' "$hcl_aseprite" > "$digest_json"
+	assert_eq "$hcl_aseprite" "$(jq -er "$f_aseprite" "$digest_json")" "jq filter must handle digest-pinned aseprite-upstream context"
+
+	# Boundary: registry host with port and tag must extract tag, not host:port
+	local port_tag_json="$TEST_TMP/port-tag-bake.json"
+	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://localhost:5000/aseprite:%s-headless"}}}}\n' "$hcl_aseprite" > "$port_tag_json"
+	assert_eq "$hcl_aseprite" "$(jq -er "$f_aseprite" "$port_tag_json")" "jq filter must extract tag when registry includes a port"
+
+	# Negative: registry host with port and no tag must fail closed
+	local port_notag_json="$TEST_TMP/port-notag-bake.json"
+	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://localhost:5000/aseprite"}}}}\n' > "$port_notag_json"
+	local rc=0
+	jq -er "$f_aseprite" "$port_notag_json" >/dev/null 2>&1 || rc=$?
+	[ "$rc" -ne 0 ] || fail "jq -er must fail when registry has port and no tag"
+
+	# Negative: digest-only reference with no tag must fail closed
+	local digest_only_json="$TEST_TMP/digest-only-bake.json"
+	printf '{"target":{"gdtk-non-free":{"contexts":{"aseprite-upstream":"docker-image://ghcr.io/kidthales/aseprite@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}}}\n' > "$digest_only_json"
+	rc=0
+	jq -er "$f_aseprite" "$digest_only_json" >/dev/null 2>&1 || rc=$?
+	[ "$rc" -ne 0 ] || fail "jq -er must fail when digest-only context omits tag"
+
+	# Negative: empty arg must fail closed with jq -er
+	local empty_json="$TEST_TMP/empty-bake.json"
+	printf '{"target":{"gdtk":{"args":{"tiled_version":""}}}}\n' > "$empty_json"
+	rc=0
+	jq -er "$f_tiled" "$empty_json" >/dev/null 2>&1 || rc=$?
+	[ "$rc" -ne 0 ] || fail "jq -er must fail when tiled_version is empty"
 }
 
 test_ldd_not_found_guard
@@ -292,5 +476,6 @@ test_tiled_wrapper
 test_taskfile_contracts
 test_clean_workflow_tags
 test_repo_governance_invariants
+test_release_bom_extraction
 
 printf 'PASS: all toolkit unit and boundary tests succeeded\n'
